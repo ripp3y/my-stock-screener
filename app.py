@@ -1,29 +1,27 @@
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.express as px
 
 # 1. App Configuration
-st.set_page_config(page_title="Stock Screener", layout="centered")
-st.title("📊 Sector & Watchlist Pro")
+st.set_page_config(page_title="Stock Tracker", layout="centered")
+st.title("📊 Sector Momentum Dashboard")
 
-# 2. Define Sectors & Your Specific Watchlist
 sectors = {
-    "Energy": "XLE",
-    "Industrials": "XLI",
-    "Materials": "XLB",
-    "Tech": "XLK",
-    "Financials": "XLF",
+    "Energy": "XLE", "Industrials": "XLI", "Materials": "XLB", 
+    "Tech": "XLK", "Financials": "XLF", "Utilities": "XLU"
 }
 
 my_watchlist = {
     "Energy": ["PBR.A", "EQNR", "OVV", "PTEN", "CVX"],
-    "Materials": ["CENX", "AA", "FCX"],
+    "Materials": ["CENX", "AA"],
     "Tech": ["MU", "LRCX", "ASX"]
 }
 
-# 3. Sector Performance Logic
+# 2. Fetch Data & Build Chart
 @st.cache_data(ttl=300)
-def get_market_data():
+def get_market_summary():
     data = []
     for name, ticker in sectors.items():
         try:
@@ -31,51 +29,35 @@ def get_market_data():
             hist = t.history(period="2d")
             change = ((hist['Close'].iloc[-1] - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
             data.append({"Sector": name, "Change %": round(change, 2)})
-        except:
-            continue
-    return pd.DataFrame(data).sort_values(by="Change %", ascending=False)
+        except: continue
+    return pd.DataFrame(data).sort_values(by="Change %")
 
-df_sectors = get_market_data()
+df_sectors = get_market_summary()
 
-# 4. Display Sector Grid
-st.subheader("Sector Performance (1D)")
-cols = st.columns(2)
-for i, (index, row) in enumerate(df_sectors.iterrows()):
-    col = cols[i % 2]
-    col.metric(row['Sector'], f"{row['Change %']}%")
+# 3. Visual Bar Chart
+st.subheader("Market Heatmap (1D %)")
+fig = px.bar(df_sectors, x='Change %', y='Sector', orientation='h',
+             color='Change %', color_continuous_scale='RdYlGn',
+             text_auto=True)
+fig.update_layout(showlegend=False, height=300, margin=dict(l=0, r=0, t=0, b=0))
+st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# 5. The "At a Glance" Drill Down
-selected_sector = st.selectbox("Select a Sector to Drill Down:", df_sectors['Sector'])
+# 4. Watchlist with Percentage Logic
+selected_sector = st.selectbox("Drill Down Sector:", df_sectors['Sector'][::-1])
 
-# Display your Watchlist for that sector
 if selected_sector in my_watchlist:
-    st.write(f"### My {selected_sector} Watchlist")
-    for ticker_symbol in my_watchlist[selected_sector]:
+    st.write(f"### {selected_sector} Watchlist")
+    for ticker in my_watchlist[selected_sector]:
         try:
-            stock_data = yf.Ticker(ticker_symbol)
-            latest_price = stock_data.history(period="1d")['Close'].iloc[-1]
-            st.write(f"**{ticker_symbol}:** ${latest_price:.2f}")
+            s = yf.Ticker(ticker)
+            h = s.history(period="2d")
+            price = h['Close'].iloc[-1]
+            pct = ((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100
+            
+            # Color coding the output
+            color = "🟢" if pct >= 0 else "🔴"
+            st.write(f"{color} **{ticker}**: ${price:.2f} ({pct:+.2f}%)")
         except:
-            st.write(f"**{ticker_symbol}:** Data pending...")
-
-# 6. 🔥 Top Sector Movers (Discovery)
-st.write("---")
-st.subheader(f"🔥 Trending in {selected_sector}")
-# For now, we list major liquid players in that sector to watch for momentum
-trending_list = {
-    "Energy": ["XOM", "SHEL", "BP"],
-    "Materials": ["NEM", "BHP", "RIO"],
-    "Tech": ["NVDA", "AAPL", "AMD"],
-    "Industrials": ["CAT", "HON", "GE"]
-}
-
-if selected_sector in trending_list:
-    for trend_ticker in trending_list[selected_sector]:
-        try:
-            t_stock = yf.Ticker(trend_ticker)
-            t_price = t_stock.history(period="1d")['Close'].iloc[-1]
-            st.write(f"🚀 **{trend_ticker}** is active at ${t_price:.2f}")
-        except:
-            continue
+            st.write(f"⚪ **{ticker}**: Data pending...")
