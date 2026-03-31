@@ -4,11 +4,10 @@ import pandas as pd
 
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
-# Final CSS for mobile performance
+# CSS for a clean mobile look
 st.markdown("""
     <style>
     .stMarkdown, div[data-testid="stExpander"] label { font-size: 0.85rem !important; }
-    .stButton>button { height: 2.2rem; font-size: 0.85rem; width: 100%; }
     [data-testid="stLineChart"] { height: 180px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -26,79 +25,73 @@ sector_stocks = {
     "Industrials": ["CAT", "DE", "GE", "UNP", "HON", "RTX", "LMT", "UPS"]
 }
 
-# 1. BATCH DATA ENGINE (Fixes the "Unavailable" Error)
-@st.cache_data(ttl=600) # Increased cache to 10 minutes to reduce API stress
-def get_alpha_terminal_data():
+@st.cache_data(ttl=600)
+def get_clean_data():
     all_stocks = []
     s_perf = []
-    charts = {}
     
     for s_name, s_ticker in sectors.items():
         try:
             s_obj = yf.Ticker(s_ticker)
-            s_hist = s_obj.history(period="1mo")
-            if len(s_hist) < 2: continue
+            s_hist = s_obj.history(period="5d")
+            if s_hist.empty: continue
             
-            s_change = ((s_hist['Close'].iloc[-1] - s_hist['Close'].iloc[-2]) / s_hist['Close'].iloc[-2]) * 100
-            s_perf.append({"Name": s_name, "PC": s_change})
+            s_pc = ((s_hist['Close'].iloc[-1] - s_hist['Close'].iloc[-2]) / s_hist['Close'].iloc[-2]) * 100
+            s_perf.append({"Name": s_name, "PC": s_pc})
             
             if s_name in sector_stocks:
-                # BATCH DOWNLOAD for the entire sector at once
-                sector_tickers = sector_stocks[s_name]
-                data = yf.download(sector_tickers, period="6m", interval="1d", group_by='ticker', progress=False)
-                
-                for t in sector_tickers:
+                for t in sector_stocks[s_name]:
                     try:
-                        # Extract price and change
-                        t_data = data[t] if len(sector_tickers) > 1 else data
-                        if t_data.empty: continue
+                        t_obj = yf.Ticker(t)
+                        t_hist = t_obj.history(period="5d")
+                        if t_hist.empty: continue
                         
-                        price = t_data['Close'].iloc[-1]
-                        # Calc 1-day change from the 6m history
-                        change = ((t_data['Close'].iloc[-1] - t_data['Close'].iloc[-2]) / t_data['Close'].iloc[-2]) * 100
+                        price = t_hist['Close'].iloc[-1]
+                        change = ((t_hist['Close'].iloc[-1] - t_hist['Close'].iloc[-2]) / t_hist['Close'].iloc[-2]) * 100
                         
                         all_stocks.append({
                             "Ticker": t, "Price": price, "Change": change, 
-                            "Sector": s_name, "Alpha": change - s_change
+                            "Sector": s_name, "Alpha": change - s_pc
                         })
-                        # Pre-store the chart data
-                        charts[t] = t_data['Close']
                     except: continue
         except: continue
-    return pd.DataFrame(all_stocks), pd.DataFrame(s_perf).sort_values(by="PC", ascending=False), charts
+        
+    # Ensure the DataFrame is created with the correct columns even if empty
+    df = pd.DataFrame(all_stocks, columns=['Ticker', 'Price', 'Change', 'Sector', 'Alpha'])
+    sdf = pd.DataFrame(s_perf, columns=['Name', 'PC']).sort_values(by="PC", ascending=False)
+    return df, sdf
 
-# 2. RUN APP
-df_all, df_s_perf, all_charts = get_alpha_terminal_data()
+df_all, df_s_perf = get_clean_data()
 
 st.title("🛡️ Alpha Terminal")
 
-# Search Bar
+# Search Bar (Top Priority)
 search_q = st.text_input("🔍 Quick Ticker Search", "").strip().upper()
 if search_q:
-    s_data = yf.download(search_q, period="6m", progress=False)
-    if not s_data.empty:
-        st.write(f"### {search_q}: ${s_data['Close'].iloc[-1]:.2f}")
-        st.line_chart(s_data['Close'])
+    try:
+        data = yf.download(search_q, period="6m", progress=False)
+        if not data.empty:
+            st.write(f"### {search_q}: ${data['Close'].iloc[-1]:.2f}")
+            st.line_chart(data['Close'])
+    except: st.error("Ticker not found.")
 
 st.divider()
 
-# 3. SECTOR DISPLAY
+# Sector Drill-Down
 if not df_s_perf.empty:
     s_labels = [f"{r['Name']} ({r['PC']:+.2f}%)" for _, r in df_s_perf.iterrows()]
     sel_label = st.selectbox("Sort by Sector Strength:", s_labels)
     sel_name = sel_label.split(" (")[0]
     
-    st.subheader(f"Ranked: {sel_name}")
+    # Securely filter the data
     df_v = df_all[df_all['Sector'] == sel_name].sort_values(by="Alpha", ascending=False)
     
     for _, row in df_v.iterrows():
-        is_lead = row['Alpha'] > 0
-        badge = "⭐" if is_lead else "◌"
         c = "green" if row['Change'] > 0 else "red"
-        
-        with st.expander(f"{badge} {row['Ticker']} | ${row['Price']:.2f} | :{c}[{row['Change']:+.2f}%]"):
-            # Instant chart display from pre-loaded data
-            if row['Ticker'] in all_charts:
-                st.line_chart(all_charts[row['Ticker']])
+        with st.expander(f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{c}[{row['Change']:+.2f}%]"):
+            # Fetch chart ONLY when the user expands the section to save bandwidth/API limits
+            chart_data = yf.download(row['Ticker'], period="6m", progress=False)
+            if not chart_data.empty:
+                st.line_chart(chart_data['Close'])
             else:
-                st.write("Fetching latest chart...")
+                st.write("Chart data loading...")
