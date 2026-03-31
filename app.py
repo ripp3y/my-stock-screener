@@ -57,16 +57,13 @@ selected_sector = st.selectbox("Select a Sector to Drill Down:", df_sectors['Sec
 
 if selected_sector in my_watchlist:
     st.write(f"### Top Picks in {selected_sector}")
-    for ticker in my_watchlist[selected_sector]:
-        stock = yf.Ticker(ticker)
-try:
-    # This way if one price fails, the whole app doesn't crash
-    price = stock.history(period="1d")['Close'].iloc[-1]
-    st.write(f"**{ticker}:** ${price:.2f}")
-except:
-    st.write(f"**{ticker}:** Price currently unavailable")
-
+    for ticker_symbol in my_watchlist[selected_sector]:
+        try:
+            stock_data = yf.Ticker(ticker_symbol)
+            # Fetching the most recent closing price
+            latest_price = stock_data.history(period="1d")['Close'].iloc[-1]
+            st.write(f"**{ticker_symbol}:** ${latest_price:.2f}")
+        except Exception:
+            st.write(f"**{ticker_symbol}:** Connection busy, refresh in a moment")
 else:
     st.info("Select a sector to see your primary watchlists.")
-
-st.caption("Data refreshed every 5 minutes. Build v1.0")
