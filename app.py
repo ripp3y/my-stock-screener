@@ -49,6 +49,19 @@ for i, (index, row) in enumerate(df_sectors.iterrows()):
     col = cols[i % 2]
     color = "green" if row['Change %'] >= 0 else "red"
     col.metric(row['Sector'], f"{row['Change %']}%", delta_color="normal")
+    
+st.divider()
+
+st.subheader("🔥 Top Sector Movers")
+
+# This pulls the biggest gainers in the selected sector automatically
+ticker_search = yf.Ticker(sectors[selected_sector])
+top_movers = ["XOM", "CVX", "BP"] # Placeholder: We can automate this to pull live Finviz leaders next!
+
+for mover in top_movers:
+    m_data = yf.Ticker(mover)
+    m_price = m_data.history(period="1d")['Close'].iloc[-1]
+    st.write(f"🚀 **{mover}** is trending in {selected_sector} at ${m_price:.2f}")
 
 st.divider()
 
