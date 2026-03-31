@@ -4,79 +4,85 @@ import pandas as pd
 
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
-# CSS to make the app feel like a native mobile tool
+# Mobile Optimization
 st.markdown("""
     <style>
     .stMarkdown, div[data-testid="stExpander"] label { font-size: 0.85rem !important; }
-    .stButton>button { height: 2.2rem; font-size: 0.85rem; width: 100%; }
     [data-testid="stLineChart"] { height: 180px !important; }
-    div[data-testid="stExpander"] { border: 1px solid #333; margin-bottom: 5px; }
+    div[data-testid="stExpander"] { border: 1px solid #333; margin-bottom: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
-sectors = {
-    "Energy": "XLE", "Materials": "XLB", "Industrials": "XLI", "Tech": "XLK",
-    "Financials": "XLF", "Health Care": "XLV", "Cons. Discretionary": "XLY",
-    "Cons. Staples": "XLP", "Utilities": "XLU", "Real Estate": "XLRE", "Communication": "XLC"
-}
-
-sector_stocks = {
+# Define Watchlist
+sector_map = {
     "Energy": ["PBR-A", "EQNR", "OVV", "PTEN", "CVX", "XOM", "SLB", "COP"],
     "Materials": ["CENX", "AA", "FCX", "NEM", "BHP", "RIO", "LIN", "SHW"],
     "Tech": ["MU", "LRCX", "ASX", "NVDA", "AAPL", "MSFT", "AMD", "AVGO"],
     "Industrials": ["CAT", "DE", "GE", "UNP", "HON", "RTX", "LMT", "UPS"]
 }
+etfs = {"Energy": "XLE", "Materials": "XLB", "Tech": "XLK", "Industrials": "XLI"}
 
-# 1. Faster Data Engine
+# 1. THE DATA ENGINE (With NaN Protection)
 @st.cache_data(ttl=600)
-def get_market_snapshot():
-    all_stocks = []
-    s_perf = []
+def get_market_data():
+    all_data = []
+    s_perf = {}
     
-    for s_name, s_ticker in sectors.items():
+    for s_name, etf_tick in etfs.items():
         try:
-            s_data = yf.download(s_ticker, period="5d", progress=False)
-            if s_data.empty: continue
+            # Get Sector Baseline
+            e_h = yf.download(etf_tick, period="5d", progress=False)
+            if e_h.empty: continue
+            s_ch = ((e_h['Close'].iloc[-1] - e_h['Close'].iloc[-2]) / e_h['Close'].iloc[-2]) * 100
+            s_perf[s_name] = float(s_ch)
             
-            s_pc = ((s_data['Close'].iloc[-1] - s_data['Close'].iloc[-2]) / s_data['Close'].iloc[-2]) * 100
-            s_perf.append({"Name": s_name, "PC": float(s_pc)})
-            
-            if s_name in sector_stocks:
-                for t in sector_stocks[s_name]:
-                    try:
-                        t_data = yf.download(t, period="5d", progress=False)
-                        if t_data.empty: continue
-                        price = float(t_data['Close'].iloc[-1])
-                        change = float(((t_data['Close'].iloc[-1] - t_data['Close'].iloc[-2]) / t_data['Close'].iloc[-2]) * 100)
-                        all_stocks.append({
-                            "Ticker": t, "Price": price, "Change": change, 
-                            "Sector": s_name, "Alpha": change - s_pc
-                        })
-                    except: continue
+            # Get Individual Stocks
+            for t in sector_map[s_name]:
+                try:
+                    t_h = yf.download(t, period="5d", progress=False)
+                    if t_h.empty: continue
+                    price = float(t_h['Close'].iloc[-1])
+                    ch = ((t_h['Close'].iloc[-1] - t_h['Close'].iloc[-2]) / t_h['Close'].iloc[-2]) * 100
+                    
+                    all_data.append({
+                        "Ticker": t, "Price": price, "Change": float(ch), 
+                        "Sector": s_name, "Alpha": float(ch - s_ch)
+                    })
+                except: continue
         except: continue
+    
+    df = pd.DataFrame(all_data)
+    # Protection against the ValueError: Drop any row with missing math
+    if not df.empty:
+        df = df.dropna(subset=['Alpha'])
         
-    return pd.DataFrame(all_stocks), pd.DataFrame(s_perf).sort_values(by="PC", ascending=False)
+    return df, s_perf
 
-df_all, df_s_perf = get_market_snapshot()
+df_all, s_perf_dict = get_market_data()
 
 st.title("🛡️ Alpha Terminal")
 
-# 2. SECTOR VIEW
-if not df_s_perf.empty:
-    s_labels = [f"{r['Name']} ({r['PC']:+.2f}%)" for _, r in df_s_perf.iterrows()]
-    sel_label = st.selectbox("Market Strength:", s_labels)
+# 2. SECTOR SELECTION
+if s_perf_dict:
+    # Sort sectors by performance
+    sorted_sectors = sorted(s_perf_dict.items(), key=lambda x: x[1], reverse=True)
+    options = [f"{s} ({p:+.2f}%)" for s, p in sorted_sectors]
+    sel_label = st.selectbox("Select Sector:", options)
     sel_name = sel_label.split(" (")[0]
     
+    # 3. STOCK LISTING
+    st.subheader(f"Ranked: {sel_name}")
     df_v = df_all[df_all['Sector'] == sel_name].sort_values(by="Alpha", ascending=False)
     
     for _, row in df_v.iterrows():
-        c = "green" if row['Change'] > 0 else "red"
-        # The key fix: Fetching data inside the expander only when needed
-        with st.expander(f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{c}[{row['Change']:+.2f}%]"):
-            with st.spinner('Loading Chart...'):
-                # We pull 6 months, but keep the request 'Close' only to stay light
-                chart_data = yf.download(row['Ticker'], period="6m", progress=False)['Close']
-                if not chart_data.empty:
-                    st.line_chart(chart_data)
+        color = "green" if row['Change'] > 0 else "red"
+        label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{color}[{row['Change']:+.2f}%]"
+        
+        with st.expander(label):
+            # Only download chart when tapped
+            with st.spinner("Fetching Chart..."):
+                c_data = yf.download(row['Ticker'], period="6m", progress=False)['Close']
+                if not c_data.empty:
+                    st.line_chart(c_data)
                 else:
-                    st.write("Data sync failed. Try again.")
+                    st.write("Chart data unavailable.")
