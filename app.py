@@ -3,26 +3,15 @@ import yfinance as yf
 import pandas as pd
 import plotly.express as px
 
-# 1. Setup
-st.set_page_config(page_title="Global Market Alpha", layout="centered")
-st.title("🏛️ Full Sector Momentum Terminal")
+st.set_page_config(page_title="The Best Momentum", layout="centered")
 
-# 2. All 11 Major Market Sectors
+# 1. Market Infrastructure
 sectors = {
-    "Energy": "XLE",
-    "Materials": "XLB",
-    "Industrials": "XLI",
-    "Tech": "XLK",
-    "Financials": "XLF",
-    "Health Care": "XLV",
-    "Cons. Discretionary": "XLY",
-    "Cons. Staples": "XLP",
-    "Utilities": "XLU",
-    "Real Estate": "XLRE",
-    "Communication": "XLC"
+    "Energy": "XLE", "Materials": "XLB", "Industrials": "XLI", "Tech": "XLK",
+    "Financials": "XLF", "Health Care": "XLV", "Cons. Discretionary": "XLY",
+    "Cons. Staples": "XLP", "Utilities": "XLU", "Real Estate": "XLRE", "Communication": "XLC"
 }
 
-# 3. Pre-Populated "A-Class" Candidates for Every Sector
 sector_stocks = {
     "Energy": ["PBR.A", "EQNR", "OVV", "PTEN", "CVX", "XOM", "SLB", "COP"],
     "Materials": ["CENX", "AA", "FCX", "NEM", "BHP", "RIO", "LIN", "SHW"],
@@ -37,53 +26,64 @@ sector_stocks = {
     "Communication": ["META", "GOOGL", "NFLX", "DIS", "TMUS", "VZ", "T", "CHTR"]
 }
 
-# 4. Market Data Engine
+# 2. Data Engine (Calculates Alpha for everything)
 @st.cache_data(ttl=300)
-def get_all_sector_perf():
-    data = {}
+def get_full_market_rankings():
+    # Get Sector Baselines
+    sector_perf = {}
     for name, ticker in sectors.items():
         try:
             h = yf.Ticker(ticker).history(period="2d")
-            change = ((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100
-            data[name] = round(change, 2)
-        except: data[name] = 0.0
-    return data
-
-sector_perf_map = get_all_sector_perf()
-
-# 5. Dashboard Visuals
-df_perf = pd.DataFrame(list(sector_perf_map.items()), columns=['Sector', 'Change %']).sort_values(by="Change %")
-fig = px.bar(df_perf, x='Change %', y='Sector', orientation='h', 
-             color='Change %', color_continuous_scale='RdYlGn', text_auto=True)
-st.plotly_chart(fig, use_container_width=True)
-
-st.divider()
-
-# 6. Interactive Discovery
-selected_name = st.selectbox("Switch Sector View:", df_perf['Sector'][::-1])
-s_change = sector_perf_map[selected_name]
-
-st.subheader(f"Top 8 in {selected_name} (Sector: {s_change:+.2f}%)")
-
-# Grid display for mobile
-cols = st.columns(2)
-if selected_name in sector_stocks:
-    for i, ticker in enumerate(sector_stocks[selected_name]):
-        with cols[i % 2]:
+            sector_perf[name] = ((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100
+        except: sector_perf[name] = 0.0
+    
+    # Rank all stocks
+    all_stocks = []
+    for sector, tickers in sector_stocks.items():
+        s_base = sector_perf[sector]
+        for t in tickers:
             try:
-                t_obj = yf.Ticker(ticker)
-                h = t_obj.history(period="2d")
+                obj = yf.Ticker(t)
+                h = obj.history(period="2d")
                 price = h['Close'].iloc[-1]
-                stock_pc = ((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100
-                
-                # RELATIVE STRENGTH CHECK
-                is_leader = stock_pc > s_change
-                badge = "⭐ LEADER" if is_leader else "◌ Laggard"
-                b_color = "green" if is_leader else "gray"
-                
-                st.markdown(f"**{ticker}**")
-                st.markdown(f"Price: `${price:.2f}`")
-                st.markdown(f"1D: :{b_color}[{stock_pc:+.2f}%] | {badge}")
-                st.write("---")
-            except:
-                st.write(f"{ticker}: Syncing...")
+                change = ((h['Close'].iloc[-1] - h['Close'].iloc[-2]) / h['Close'].iloc[-2]) * 100
+                alpha = change - s_base  # This is the momentum score
+                all_stocks.append({
+                    "Ticker": t, "Price": price, "Change": change, 
+                    "Sector": sector, "Alpha": alpha, "S_Perf": s_base
+                })
+            except: continue
+    return pd.DataFrame(all_stocks), sector_perf
+
+df_all, sector_map = get_full_market_rankings()
+
+# 3. TOP NAVIGATION
+st.title("🏆 Momentum Elite")
+show_best = st.button("⭐ CLICK FOR: THE BEST (Top 10 Global)", use_container_width=True)
+
+if show_best:
+    st.subheader("🔥 The Best: Top 10 Momentum Leaders")
+    top_10 = df_all.sort_values(by="Alpha", ascending=False).head(10)
+    for _, row in top_10.iterrows():
+        st.success(f"**{row['Ticker']}** ({row['Sector']}) | Momentum: +{row['Alpha']:.2f}% vs Sector | Price: ${row['Price']:.2f}")
+    st.divider()
+
+# 4. SECTOR VIEWER WITH SORTING
+selected_sector = st.selectbox("Switch Sector View:", list(sectors.keys()))
+s_change = sector_map[selected_sector]
+
+st.subheader(f"Ranked: {selected_sector} (Sector: {s_change:+.2f}%)")
+
+# Filter and Sort: Leaders at top, Laggards at bottom
+df_sector = df_all[df_all['Sector'] == selected_sector].sort_values(by="Alpha", ascending=False)
+
+for _, row in df_sector.iterrows():
+    is_leader = row['Alpha'] > 0
+    badge = "⭐ LEADER" if is_leader else "◌ Laggard"
+    color = "green" if is_leader else "gray"
+    
+    with st.container():
+        st.markdown(f"### **{row['Ticker']}** | {badge}")
+        st.markdown(f"Price: `${row['Price']:.2f}` | 1D: :{color}[{row['Change']:+.2f}%]")
+        st.progress(max(0, min((row['Alpha'] + 5) / 10, 1.0))) # Visual Momentum Bar
+        st.write("---")
