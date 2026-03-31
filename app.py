@@ -2,81 +2,80 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# 1. App Configuration (Mobile Optimized)
-st.set_page_config(page_title="Sector Screener", layout="centered")
+# 1. App Configuration
+st.set_page_config(page_title="Stock Screener", layout="centered")
+st.title("📊 Sector & Watchlist Pro")
 
-st.title("📊 Market Rotation Pro")
-st.write("Real-time sector pulse for quick adjustments.")
-
-# 2. Define Sectors & Tickers
+# 2. Define Sectors & Your Specific Watchlist
 sectors = {
     "Energy": "XLE",
     "Industrials": "XLI",
     "Materials": "XLB",
     "Tech": "XLK",
-    "Health Care": "XLV",
     "Financials": "XLF",
-    "Consumer Disc": "XLY",
-    "Utilities": "XLU",
 }
 
-# Stocks you specifically track
 my_watchlist = {
     "Energy": ["PBR.A", "EQNR", "OVV", "PTEN", "CVX"],
-    "Materials": ["CENX"],
+    "Materials": ["CENX", "AA", "FCX"],
     "Tech": ["MU", "LRCX", "ASX"]
 }
 
-# 3. Fetch Sector Data
-@st.cache_data(ttl=300) # Refresh data every 5 mins
+# 3. Sector Performance Logic
+@st.cache_data(ttl=300)
 def get_market_data():
     data = []
     for name, ticker in sectors.items():
-        t = yf.Ticker(ticker)
-        hist = t.history(period="2d")
-        if len(hist) > 1:
+        try:
+            t = yf.Ticker(ticker)
+            hist = t.history(period="2d")
             change = ((hist['Close'].iloc[-1] - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
-            data.append({"Sector": name, "Ticker": ticker, "Change %": round(change, 2)})
+            data.append({"Sector": name, "Change %": round(change, 2)})
+        except:
+            continue
     return pd.DataFrame(data).sort_values(by="Change %", ascending=False)
 
 df_sectors = get_market_data()
 
 # 4. Display Sector Grid
 st.subheader("Sector Performance (1D)")
-cols = st.columns(2) # Two columns looks best on mobile
-
+cols = st.columns(2)
 for i, (index, row) in enumerate(df_sectors.iterrows()):
     col = cols[i % 2]
-    color = "green" if row['Change %'] >= 0 else "red"
-    col.metric(row['Sector'], f"{row['Change %']}%", delta_color="normal")
-    
-st.divider()
-
-st.subheader("🔥 Top Sector Movers")
-
-# This pulls the biggest gainers in the selected sector automatically
-ticker_search = yf.Ticker(sectors[selected_sector])
-top_movers = ["XOM", "CVX", "BP"] # Placeholder: We can automate this to pull live Finviz leaders next!
-
-for mover in top_movers:
-    m_data = yf.Ticker(mover)
-    m_price = m_data.history(period="1d")['Close'].iloc[-1]
-    st.write(f"🚀 **{mover}** is trending in {selected_sector} at ${m_price:.2f}")
+    col.metric(row['Sector'], f"{row['Change %']}%")
 
 st.divider()
 
-# 5. Deep Dive Selection
+# 5. The "At a Glance" Drill Down
 selected_sector = st.selectbox("Select a Sector to Drill Down:", df_sectors['Sector'])
 
+# Display your Watchlist for that sector
 if selected_sector in my_watchlist:
-    st.write(f"### Top Picks in {selected_sector}")
+    st.write(f"### My {selected_sector} Watchlist")
     for ticker_symbol in my_watchlist[selected_sector]:
         try:
             stock_data = yf.Ticker(ticker_symbol)
-            # Fetching the most recent closing price
             latest_price = stock_data.history(period="1d")['Close'].iloc[-1]
             st.write(f"**{ticker_symbol}:** ${latest_price:.2f}")
-        except Exception:
-            st.write(f"**{ticker_symbol}:** Connection busy, refresh in a moment")
-else:
-    st.info("Select a sector to see your primary watchlists.")
+        except:
+            st.write(f"**{ticker_symbol}:** Data pending...")
+
+# 6. 🔥 Top Sector Movers (Discovery)
+st.write("---")
+st.subheader(f"🔥 Trending in {selected_sector}")
+# For now, we list major liquid players in that sector to watch for momentum
+trending_list = {
+    "Energy": ["XOM", "SHEL", "BP"],
+    "Materials": ["NEM", "BHP", "RIO"],
+    "Tech": ["NVDA", "AAPL", "AMD"],
+    "Industrials": ["CAT", "HON", "GE"]
+}
+
+if selected_sector in trending_list:
+    for trend_ticker in trending_list[selected_sector]:
+        try:
+            t_stock = yf.Ticker(trend_ticker)
+            t_price = t_stock.history(period="1d")['Close'].iloc[-1]
+            st.write(f"🚀 **{trend_ticker}** is active at ${t_price:.2f}")
+        except:
+            continue
