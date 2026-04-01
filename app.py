@@ -1,28 +1,17 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import requests
 
+# 1. VISUAL SETUP
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
-
-# 1. MOUNTAIN CHART CSS & UI
 st.markdown("""
     <style>
-    .stAreaChart { height: 220px !important; }
-    .stExpander { border: 1px solid #444 !important; border-radius: 8px; margin-bottom: 6px; }
-    div[data-testid="stExpander"] p { font-size: 0.95rem; font-weight: 600; }
+    .stAreaChart { height: 200px !important; }
+    .stExpander { border: 1px solid #444 !important; border-radius: 8px; margin-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. BROWSER SIMULATION ENGINE
-# This helps bypass the "Data temporarily unavailable" block
-def get_stealth_session():
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
-    return session
-
+# Define Sector Map (Note: PBR-A is more stable than PBR.A in 2026)
 watchlists = {
     "Energy": ["PBR-A", "EQNR", "OVV", "PTEN", "CVX", "XOM", "SLB", "COP"],
     "Materials": ["CENX", "AA", "FCX", "NEM", "BHP", "RIO", "LIN", "SHW"],
@@ -31,34 +20,52 @@ watchlists = {
 }
 sector_etfs = {"Energy": "XLE", "Materials": "XLB", "Tech": "XLK", "Industrials": "XLI"}
 
+# 2. RUGGED DATA ENGINE (Handles Multi-Index & Rate Limits)
 @st.cache_data(ttl=600)
-def fetch_market_state(sector_name):
-    session = get_stealth_session()
-    tickers = watchlists[sector_name]
-    etf = sector_etfs[sector_name]
+def fetch_rugged_data(sector):
+    tickers = watchlists[sector]
+    etf = sector_etfs[sector]
     
-    # Fetch price data with session headers
-    raw = yf.download(tickers + [etf], period="5d", session=session, progress=False, group_by='ticker')
-    if raw.empty: return None, None
+    # Simple batch download without 'session' to avoid TypeError
+    data = yf.download(tickers + [etf], period="5d", progress=False)
     
-    etf_pc = ((raw[etf]['Close'].iloc[-1] - raw[etf]['Close'].iloc[-2]) / raw[etf]['Close'].iloc[-2]) * 100
-    
-    rows = []
-    for t in tickers:
-        try:
-            t_data = raw[t]
-            price = t_data['Close'].iloc[-1]
-            change = ((t_data['Close'].iloc[-1] - t_data['Close'].iloc[-2]) / t_data['Close'].iloc[-2]) * 100
-            rows.append({"Ticker": t, "Price": price, "Change": change, "Alpha": change - etf_pc})
-        except: continue
-    return pd.DataFrame(rows).sort_values(by="Alpha", ascending=False), etf_pc
+    if data.empty:
+        return None, 0.0
 
-# 3. APP INTERFACE
+    # Handling the 2026 Multi-Index structure
+    # We flatten the columns to make math easier
+    try:
+        # Accessing only 'Close' prices
+        close_prices = data['Close']
+        etf_pc = ((close_prices[etf].iloc[-1] - close_prices[etf].iloc[-2]) / close_prices[etf].iloc[-2]) * 100
+        
+        results = []
+        for t in tickers:
+            if t in close_prices.columns:
+                p_now = close_prices[t].iloc[-1]
+                p_prev = close_prices[t].iloc[-2]
+                change = ((p_now - p_prev) / p_prev) * 100
+                results.append({
+                    "Ticker": t, "Price": float(p_now), 
+                    "Change": float(change), "Alpha": float(change - etf_pc)
+                })
+        return pd.DataFrame(results).sort_values(by="Alpha", ascending=False), etf_pc
+    except Exception as e:
+        st.error(f"Data Processing Error: {e}")
+        return None, 0.0
+
+# 3. INTERFACE
 st.title("🛡️ Alpha Terminal")
 
-sel_sector = st.selectbox("Market Strength:", list(watchlists.keys()))
+# Manual reboot button for the cloud server
+if st.button("🔄 Force App Reboot"):
+    st.cache_data.clear()
+    st.rerun()
 
-df, etf_val = fetch_market_state(sel_sector)
+sel_sector = st.selectbox("Market Sector:", list(watchlists.keys()))
+
+with st.spinner("Connecting to Market..."):
+    df, etf_val = fetch_rugged_data(sel_sector)
 
 if df is not None:
     st.subheader(f"Ranked: {sel_sector} (Benchmark: {etf_val:+.2f}%)")
@@ -68,17 +75,13 @@ if df is not None:
         label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{color}[{row['Change']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
         
         with st.expander(label):
-            # Unique key for every button to prevent state mix-ups
-            if st.button(f"Generate Mountain Chart", key=f"btn_{row['Ticker']}"):
-                with st.spinner("Decoding trend..."):
-                    # Use the stealth session for the chart download too
-                    sess = get_stealth_session()
-                    chart_data = yf.download(row['Ticker'], period="6m", session=sess, progress=False)['Close']
-                    
-                    if not chart_data.empty:
-                        # st.area_chart creates the shaded 'Mountain' effect
-                        st.area_chart(chart_data)
-                    else:
-                        st.error("Yahoo connection reset. Tap again in 5 seconds.")
+            # LAZY LOAD: Fetch 6M data only when tapped
+            if st.button(f"View {row['Ticker']} Trend", key=f"btn_{row['Ticker']}"):
+                chart_raw = yf.download(row['Ticker'], period="6m", progress=False)
+                if not chart_raw.empty:
+                    # 'Mountain' style shaded chart
+                    st.area_chart(chart_raw['Close'])
+                else:
+                    st.warning("Yahoo connection timeout. Please wait 10 seconds.")
 else:
-    st.info("Terminal initializing... Please wait 10 seconds.")
+    st.info("Market data is temporarily unavailable. This often happens on shared cloud IPs. Tap 'Force App Reboot' above to try a new connection.")
