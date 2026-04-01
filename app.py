@@ -1,16 +1,16 @@
-import yfinance as yf
-import streamlit as st
+# Create two columns for the metrics row
+col1, col2 = st.columns(2)
 
-# 1. Create the ticker object
-ticker_obj = yf.Ticker("SLB")
-
-# 2. Fetch the info dictionary (This defines 'info')
-info = ticker_obj.info 
-
-# 3. Now the metric will work because 'info' exists
-st.metric("Forward PE", f"{info.get('forwardPE', 'N/A')}")
-# Get the value, default to 0 if missing, and round to 1 decimal place
+# Column 1: Forward PE (already working!)
 f_pe = round(info.get('forwardPE', 0), 1)
+col1.metric("Forward PE", f"{f_pe}")
 
-# Display the polished metric
-st.metric("Forward PE", f"{f_pe}")
+# Column 2: Dividend Yield (New)
+# yfinance provides this as a decimal (e.g., 0.035), so we multiply by 100
+div_yield = info.get('dividendYield', 0)
+if div_yield:
+    formatted_yield = f"{round(div_yield * 100, 2)}%"
+else:
+    formatted_yield = "0.0%"
+
+col2.metric("Div Yield", formatted_yield)
