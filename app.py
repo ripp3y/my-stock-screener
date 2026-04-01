@@ -1,15 +1,14 @@
-# --- STEP 1: LOAD THE TOOLS (Must be Line 1) ---
+# --- STEP 1: INITIALIZE LIBRARIES (Must be Line 1) ---
 import streamlit as st
 import yfinance as yf
 
-# --- STEP 2: ESTABLISH THE FOUNDATION ---
-# Defining this here ensures 'buy_price' exists for everything below
+# --- STEP 2: ESTABLISH GLOBAL INPUTS ---
+# This defines 'buy_price' so it's ready for every calculation below
 buy_price = st.sidebar.number_input("Actual Purchase Price", value=0.0, step=0.1)
 
 # --- STEP 3: THE PURSUIT ENGINE ---
 if buy_price > 0:
     target_80 = buy_price * 1.80
-    
     st.header("🎯 Target Alpha: The 80% Path")
     st.success(f"🚀 **80% Target Price:** ${round(target_80, 2)}")
 
