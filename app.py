@@ -4,15 +4,15 @@ import pandas as pd
 
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
-# Custom CSS for the 'Mountain' chart height and expander styling
+# Fixes the chart height for mobile viewing
 st.markdown("""
     <style>
-    .stAreaChart { height: 220px !important; }
-    .stExpander { border: 1px solid #333 !important; border-radius: 8px; margin-bottom: 5px; }
+    .stAreaChart { height: 250px !important; }
+    .stExpander { border: 1px solid #333 !important; border-radius: 8px; margin-bottom: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# Define your target watchlists
+# Your target sectors and tickers
 watchlists = {
     "Tech": ["LRCX", "NVDA", "AVGO", "MU", "ASX", "AMD", "MSFT", "AAPL"],
     "Energy": ["SLB", "EQNR", "COP", "PBR-A", "XOM", "CVX", "PTEN", "OVV"],
@@ -21,71 +21,64 @@ watchlists = {
 }
 sector_etfs = {"Tech": "XLK", "Energy": "XLE", "Materials": "XLB", "Industrials": "XLI"}
 
-# CLEAN DATA ENGINE: No 'session' parameter to avoid the TypeError in your logs
-@st.cache_data(ttl=600)
-def get_alpha_snapshot(sector):
+@st.cache_data(ttl=300)
+def get_market_snapshot(sector):
     tickers = watchlists[sector]
     etf = sector_etfs[sector]
     
-    # Batch download 5 days for daily change calculation
+    # Batch download only 5 days of data for the ranking list
+    # Removed 'session' to fix the TypeError in your logs
     data = yf.download(tickers + [etf], period="5d", progress=False)
     
-    if data.empty or 'Close' not in data:
-        return None, 0.0
+    if data.empty: return None, 0.0
 
-    close_data = data['Close']
-    etf_pc = ((close_data[etf].iloc[-1] - close_data[etf].iloc[-2]) / close_data[etf].iloc[-2]) * 100
+    close = data['Close']
+    etf_pc = ((close[etf].iloc[-1] - close[etf].iloc[-2]) / close[etf].iloc[-2]) * 100
     
-    results = []
+    ranks = []
     for t in tickers:
         try:
-            p_now = close_data[t].iloc[-1]
-            p_prev = close_data[t].iloc[-2]
+            p_now = close[t].iloc[-1]
+            p_prev = close[t].iloc[-2]
             if pd.isna(p_now): continue
             
-            change = ((p_now - p_prev) / p_prev) * 100
-            results.append({
-                "Ticker": t, "Price": float(p_now), 
-                "Change": float(change), "Alpha": float(change - etf_pc)
-            })
+            chg = ((p_now - p_prev) / p_prev) * 100
+            ranks.append({"Ticker": t, "Price": p_now, "Chg": chg, "Alpha": chg - etf_pc})
         except: continue
     
-    return pd.DataFrame(results).sort_values(by="Alpha", ascending=False), etf_pc
+    return pd.DataFrame(ranks).sort_values(by="Alpha", ascending=False), etf_pc
 
-# UI RENDER
+# --- UI START ---
 st.title("🛡️ Alpha Terminal")
 
-if st.button("🔄 Refresh Market Data"):
+# Clears the 'Pending' loops if the app gets stuck
+if st.button("🔄 Hard Reset Connection"):
     st.cache_data.clear()
     st.rerun()
 
-sel_sector = st.selectbox("Sector Focus:", list(watchlists.keys()))
+sel_sector = st.selectbox("Focus Sector:", list(watchlists.keys()))
 
-with st.spinner(f"Ranking {sel_sector}..."):
-    df, etf_val = get_alpha_snapshot(sel_sector)
+with st.spinner("Ranking Momentum..."):
+    df, etf_val = get_market_snapshot(sel_sector)
 
-if df is not None and not df.empty:
+if df is not None:
     st.subheader(f"Ranked vs {sector_etfs[sel_sector]} ({etf_val:+.2f}%)")
     
     for _, row in df.iterrows():
-        color = "green" if row['Change'] > 0 else "red"
-        label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{color}[{row['Change']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
+        color = "green" if row['Chg'] > 0 else "red"
+        label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{color}[{row['Chg']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
         
-        # When you click this expander, the code inside runs immediately
         with st.expander(label):
-            # The 'Load on Click' logic lives here
-            with st.spinner(f"Fetching {row['Ticker']} History..."):
-                try:
-                    # Fetching 6M data for the 'Mountain' chart
-                    # Using a clean download call to avoid the 'YfData' TypeError
-                    hist = yf.download(row['Ticker'], period="6m", progress=False)
+            # This is the "Load as we click" trigger
+            if st.button(f"Load 6M Mountain Chart ({row['Ticker']})"):
+                with st.spinner("Syncing with Yahoo..."):
+                    # FIX: Changed '6m' to '6mo' to resolve your invalid period error
+                    hist = yf.download(row['Ticker'], period="6mo", progress=False)
                     
                     if not hist.empty:
-                        # st.area_chart creates the shaded 'Mountain' visual
+                        # st.area_chart creates the shaded 'Mountain' look you wanted
                         st.area_chart(hist['Close'])
                     else:
-                        st.error("Data temporarily unavailable from Yahoo.")
-                except Exception as e:
-                    st.error(f"Sync error: {e}")
+                        st.error("Connection lost. Tap again in 5s.")
 else:
-    st.info("Connection pending. Tap Refresh if data doesn't load in 5 seconds.")
+    st.warning("Data sync pending. Try the 'Hard Reset' button above.")
