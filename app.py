@@ -1,21 +1,18 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import time
 
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
-# --- MOBILE UI OPTIMIZATION ---
+# --- MOBILE STYLING ---
 st.markdown("""
     <style>
-    /* Force charts to a readable mobile height */
     .stAreaChart { height: 280px !important; }
-    /* Style expanders for easier thumb-tapping */
-    .stExpander { border: 1px solid #333 !important; border-radius: 8px; margin-bottom: 10px; }
-    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+    .stExpander { border: 1px solid #333 !important; border-radius: 8px; margin-bottom: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
-# Define sector groupings directly to avoid filtering KeyErrors
 watchlists = {
     "Tech": ["LRCX", "NVDA", "AVGO", "MU", "ASX", "AMD", "MSFT", "AAPL"],
     "Energy": ["SLB", "EQNR", "COP", "PBR-A", "XOM", "CVX", "PTEN", "OVV"],
@@ -24,91 +21,74 @@ watchlists = {
 }
 sector_etfs = {"Tech": "XLK", "Energy": "XLE", "Materials": "XLB", "Industrials": "XLI"}
 
-# --- DEFENSIVE DATA ENGINE ---
+# --- ROBUST DATA ENGINE ---
 
 @st.cache_data(ttl=300)
-def get_market_state(sector_name):
+def fetch_sector_snapshot(sector_name):
     tickers = watchlists[sector_name]
     etf = sector_etfs[sector_name]
     
+    # Standard batch download (5d to get yesterday's close)
+    data = yf.download(tickers + [etf], period="5d", progress=False)
+    
+    if data.empty or 'Close' not in data:
+        return pd.DataFrame(), 0.0
+        
+    close = data['Close']
     try:
-        # Fetch 5 days to ensure we have a 'previous' close for change calculation
-        data = yf.download(tickers + [etf], period="5d", progress=False)
+        etf_pc = ((close[etf].iloc[-1] - close[etf].iloc[-2]) / close[etf].iloc[-2]) * 100
         
-        if data.empty or 'Close' not in data:
-            return pd.DataFrame(), 0.0
-            
-        close_prices = data['Close']
-        
-        # Calculate ETF benchmark performance
-        etf_pc = ((close_prices[etf].iloc[-1] - close_prices[etf].iloc[-2]) / close_prices[etf].iloc[-2]) * 100
-        
-        performance_list = []
+        results = []
         for t in tickers:
-            try:
-                # Use .iloc[-1] and -2 to ensure we have valid price points
-                p_now = close_prices[t].iloc[-1]
-                p_prev = close_prices[t].iloc[-2]
-                
-                if pd.isna(p_now) or pd.isna(p_prev):
-                    continue
-                    
+            if t in close.columns:
+                p_now, p_prev = close[t].iloc[-1], close[t].iloc[-2]
+                if pd.isna(p_now): continue
                 chg = ((p_now - p_prev) / p_prev) * 100
-                performance_list.append({
-                    "Ticker": t, 
-                    "Price": p_now, 
-                    "Chg": chg, 
-                    "Alpha": chg - etf_pc
-                })
-            except:
-                continue
+                results.append({"Ticker": t, "Price": p_now, "Chg": chg, "Alpha": chg - etf_pc})
         
-        # Guard against ValueError during sorting (image_1774998979672.jpeg)
-        if not performance_list:
-            return pd.DataFrame(), 0.0
-            
-        return pd.DataFrame(performance_list).sort_values(by="Alpha", ascending=False), etf_pc
-    except Exception:
+        return pd.DataFrame(results).sort_values(by="Alpha", ascending=False), etf_pc
+    except:
         return pd.DataFrame(), 0.0
 
+# NEW: Retry logic to beat the JSONDecodeError/Throttling
 @st.cache_data(ttl=600)
-def get_historical_chart(ticker):
-    try:
-        # Period '6mo' is the correct API format (image_720628.png)
-        df = yf.download(ticker, period="6mo", progress=False)
-        return df['Close'] if not df.empty else None
-    except:
-        return None
+def get_chart_with_retry(ticker, retries=3):
+    for i in range(retries):
+        try:
+            df = yf.download(ticker, period="6mo", progress=False)
+            if not df.empty and 'Close' in df:
+                return df['Close']
+        except Exception:
+            time.sleep(1) # Pause before retry
+            continue
+    return None
 
-# --- UI LAYOUT ---
+# --- UI ---
 st.title("🛡️ Alpha Terminal")
 
-# Navigation and Sync
-col1, col2 = st.columns([3, 1])
-with col1:
-    selected_sector = st.selectbox("Market Sector:", list(watchlists.keys()))
-with col2:
-    if st.button("🔄 Sync"):
-        st.cache_data.clear()
-        st.rerun()
+if st.button("🔄 Clear Cache & Sync"):
+    st.cache_data.clear()
+    st.rerun()
 
-# Processing
-df_ranked, bench_val = get_market_state(selected_sector)
+sel_sector = st.selectbox("Market Sector:", list(watchlists.keys()))
+df_ranked, benchmark = fetch_sector_snapshot(sel_sector)
 
 if not df_ranked.empty:
-    st.subheader(f"Ranked: {selected_sector} (vs {sector_etfs[selected_sector]} {bench_val:+.2f}%)")
+    st.subheader(f"Momentum vs {sector_etfs[sel_sector]} ({benchmark:+.2f}%)")
     
     for _, row in df_ranked.iterrows():
-        # Dynamic coloring for mobile readability
-        status_color = "green" if row['Chg'] > 0 else "red"
-        label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{status_color}[{row['Chg']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
+        status = "green" if row['Chg'] > 0 else "red"
+        label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{status}[{row['Chg']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
         
         with st.expander(label):
-            # Fetch chart ONLY when expanded to save mobile bandwidth
-            chart_data = get_historical_chart(row['Ticker'])
-            if chart_data is not None:
-                st.area_chart(chart_data)
-            else:
-                st.warning("Chart data sync pending... try refreshing.")
+            # CHARTS LOAD AUTOMATICALLY ON CLICK HERE
+            with st.spinner(f"Requesting {row['Ticker']}..."):
+                chart_data = get_chart_with_retry(row['Ticker'])
+                
+                if chart_data is not None:
+                    # Renders the shaded 'Mountain' chart
+                    st.area_chart(chart_data)
+                else:
+                    st.error("Yahoo Finance blocked the request. Try again in a minute.")
 else:
-    st.info("🔄 Connecting to market data... Tap 'Sync' if results don't load.")
+    st.info("Syncing... If it takes more than 10s, Yahoo may be throttling the server.")
