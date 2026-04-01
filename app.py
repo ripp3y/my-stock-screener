@@ -23,27 +23,38 @@ st.divider()
 main_col, side_col = st.columns([3, 1])
 
 with main_col:
-    st.subheader(f"{ticker} 6-Month Mountain Chart")
+    st.subheader(f"{ticker} Advanced Analysis")
     
-    # 5. FETCH ACTUAL DATA
+    # 1. Fetch Data with Indicators
     try:
-        # Get 6 months of daily data
         data = yf.download(ticker, period="6mo", interval="1d")
-        
         if not data.empty:
-            # We use 'Close' for the mountain path
-            chart_data = data['Close']
-            st.area_chart(chart_data, color="#4eb3ff", use_container_width=True)
+            # Calculate Moving Averages
+            data['SMA20'] = data['Close'].rolling(window=20).mean()
+            data['SMA50'] = data['Close'].rolling(window=50).mean()
             
-            # Show the actual live price below the chart
-            last_price = chart_data.iloc[-1].item()
-            st.info(f"💰 Current {ticker} Price: ${last_price:,.2f}")
-        else:
-            st.warning(f"Ticker '{ticker}' not found. Please use US symbols.")
+            # 2. Render Multi-Line Chart
+            # This shows the "Mountain" plus two signal lines
+            st.area_chart(data[['Close', 'SMA20', 'SMA50']], color=["#4eb3ff", "#ff4b4b", "#00ff00"])
             
+            # 3. Dynamic Signal Generator
+            last_price = data['Close'].iloc[-1].item()
+            last_sma20 = data['SMA20'].iloc[-1].item()
+            
+            if last_price > last_sma20:
+                st.success(f"📈 **Signal: BULLISH** — {ticker} is trading above its 20-day average.")
+            else:
+                st.warning(f"📉 **Signal: CAUTION** — {ticker} has dipped below short-term support.")
+                
     except Exception as e:
-        st.error("Connecting to Market Data... Please refresh.")
+        st.error("Market data sync in progress...")
 
+with side_col:
+    # 4. Fundamental Health Check (New Section)
+    st.write("### Fundamental Health")
+    info = yf.Ticker(ticker).info
+    st.metric("PE Ratio", f"{info.get('trailingPE', 'N/A'):.2f}")
+    st.metric("Profit Margin", f"{info.get('profitMargins', 0)*100:.1f}%")
 with side_col:
     st.write("### Market Pulse")
     st.write("Tech leads the relief rally today.")
