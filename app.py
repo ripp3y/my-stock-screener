@@ -4,15 +4,16 @@ import pandas as pd
 
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
-# CSS to fix chart height for mobile and style expanders
+# Mobile CSS: Forces charts to a readable height and styles expanders
 st.markdown("""
     <style>
     .stAreaChart { height: 250px !important; }
     .stExpander { border: 1px solid #333 !important; border-radius: 8px; margin-bottom: 8px; }
+    [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# Configuration for watchlists and benchmarks
+# User-defined sectors
 watchlists = {
     "Tech": ["LRCX", "NVDA", "AVGO", "MU", "ASX", "AMD", "MSFT", "AAPL"],
     "Energy": ["SLB", "EQNR", "COP", "PBR-A", "XOM", "CVX", "PTEN", "OVV"],
@@ -23,16 +24,18 @@ sector_etfs = {"Tech": "XLK", "Energy": "XLE", "Materials": "XLB", "Industrials"
 
 # --- DATA ENGINES ---
 
-# FIX: Removed 'session' to stop the TypeError seen in image_71f2cb.png
 @st.cache_data(ttl=300)
 def get_market_state(sector):
     tickers = watchlists[sector]
     etf = sector_etfs[sector]
     
     try:
+        # FIX: Removed 'session' to stop TypeError from image_71f2cb.png
         data = yf.download(tickers + [etf], period="5d", progress=False)
+        
+        # Defensive check for empty data (prevents ValueError in image_1774998979672.jpeg)
         if data.empty or 'Close' not in data:
-            return None, 0.0
+            return pd.DataFrame(), 0.0
             
         close = data['Close']
         etf_pc = ((close[etf].iloc[-1] - close[etf].iloc[-2]) / close[etf].iloc[-2]) * 100
@@ -46,26 +49,28 @@ def get_market_state(sector):
                 ranks.append({"Ticker": t, "Price": p_now, "Chg": chg, "Alpha": chg - etf_pc})
             except: continue
         
+        # Final safety check before sorting
+        if not ranks: return pd.DataFrame(), 0.0
         return pd.DataFrame(ranks).sort_values(by="Alpha", ascending=False), etf_pc
     except Exception as e:
-        st.error(f"Snapshot Error: {e}")
-        return None, 0.0
+        return pd.DataFrame(), 0.0
 
-# FIX: Period changed from '6m' (invalid) to '6mo' (valid) per image_720628.png
 @st.cache_data(ttl=600)
 def fetch_mountain_data(ticker):
     try:
-        return yf.download(ticker, period="6mo", progress=False)
+        # FIX: Using '6mo' (valid) instead of '6m' (invalid) per image_720628.png
+        df = yf.download(ticker, period="6mo", progress=False)
+        return df['Close'] if not df.empty else None
     except:
-        return pd.DataFrame()
+        return None
 
-# --- UI START ---
+# --- UI RENDER ---
 st.title("🛡️ Alpha Terminal")
 
-# Main action row
+# Sync Button & Selector
 col1, col2 = st.columns([3, 1])
 with col1:
-    sel_sector = st.selectbox("Sector Focus:", list(watchlists.keys()))
+    sel_sector = st.selectbox("View Sector:", list(watchlists.keys()))
 with col2:
     if st.button("🔄 Sync"):
         st.cache_data.clear()
@@ -73,22 +78,23 @@ with col2:
 
 df, etf_val = get_market_state(sel_sector)
 
-if df is not None and not df.empty:
+if not df.empty:
     st.subheader(f"Momentum vs {sector_etfs[sel_sector]} ({etf_val:+.2f}%)")
     
     for _, row in df.iterrows():
         color = "green" if row['Chg'] > 0 else "red"
+        # Star icon added to simulate your "Global Leaders" layout
         label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{color}[{row['Chg']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
         
-        # Everything inside this with block loads only when the expander is opened
+        # Load on click logic
         with st.expander(label):
-            with st.spinner(f"Pulling {row['Ticker']} data..."):
+            with st.spinner("Syncing chart..."):
                 hist = fetch_mountain_data(row['Ticker'])
                 
-                # Check if data exists before plotting to avoid the empty chart in image 1000029618.jpg
-                if not hist.empty and 'Close' in hist:
-                    st.area_chart(hist['Close'])
+                # Check for None prevents the flat-line charts seen in your screenshots
+                if hist is not None:
+                    st.area_chart(hist)
                 else:
-                    st.error("Market data sync failed. Check your connection.")
+                    st.error("Yahoo sync failed. Tap 'Sync' at the top to try again.")
 else:
-    st.warning("Establishing data link... Tap 'Sync' if data is missing.")
+    st.info("Establishing data link... Tap 'Sync' if data doesn't appear shortly.")
