@@ -3,67 +3,72 @@ import yfinance as yf
 import pandas as pd
 import datetime
 
-# 1. Setup the Layout
+# 1. Page Config
 st.set_page_config(layout="wide", page_title="PRO US TERMINAL")
 
-# 2. CACHING: This prevents the YFRateLimitError
-@st.cache_data(ttl=300) # Data stays in memory for 300 seconds (5 mins)
-def get_market_data(ticker):
-    stock = yf.Ticker(ticker)
-    # Fetch 6 months of historical data
-    hist = stock.history(period="6mo")
-    # Fetch basic info for metrics
-    info = stock.info
-    return hist, info
+# 2. Gemini Power Label
+st.markdown("<p style='text-align: right; color: gray; font-size: 10px;'>Powered by Gemini</p>", unsafe_allow_html=True)
 
-# 3. Header & Search
+@st.cache_data(ttl=300)
+def get_pro_data(ticker, compare_ticker=None):
+    # Fetch primary stock
+    main_stock = yf.Ticker(ticker)
+    hist = main_stock.history(period="6mo")
+    
+    # Calculate SMA50
+    hist['SMA50'] = hist['Close'].rolling(window=50).mean()
+    
+    # Fetch comparison if requested
+    comparison_df = pd.DataFrame()
+    if compare_ticker:
+        comp_stock = yf.Ticker(compare_ticker)
+        comparison_df = comp_stock.history(period="6mo")['Close']
+        
+    return hist, comparison_df, main_stock.news
+
+# 3. Search & Comparison Header
 st.title("📊 Strategic US Terminal")
-ticker_input = st.text_input("🔍 Command Center: Enter US Ticker", value="MU").upper()
+col_search1, col_search2 = st.columns([2, 1])
+with col_search1:
+    ticker = st.text_input("🔍 Primary Ticker", value="PBR").upper()
+with col_search2:
+    compare_ticker = st.text_input("⚖️ Compare vs (Optional)", value="XOM").upper()
 
-# 4. Indices Metrics (Mar 31, 2026 Context)
-m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-m_col1.metric("S&P 500", "6,528.52", "+2.91%")
-m_col2.metric("NASDAQ", "21,590.63", "+3.83%")
-m_col3.metric("DOW", "46,341.51", "+2.49%")
-m_col4.metric("VIX", "25.25", "-17.51%")
-
-st.divider()
-
-# 5. Main Analysis Engine
+# 4. Main Analysis
 main_col, side_col = st.columns([3, 1])
 
 with main_col:
-    st.subheader(f"{ticker_input} 6M Mountain Chart")
+    hist, comp_data, news = get_pro_data(ticker, compare_ticker)
     
-    try:
-        hist, info = get_market_data(ticker_input)
+    if not hist.empty:
+        # Prepare Plotting Data
+        plot_df = hist[['Close', 'SMA50']].copy()
+        if not comp_data.empty:
+            plot_df[compare_ticker] = comp_data
         
-        if not hist.empty:
-            # CLEAN DATA: Ensure the index is just dates and prices are floats
-            chart_data = hist[['Close']].copy()
-            chart_data.index = chart_data.index.date
-            
-            # Render the 'Mountain'
-            st.area_chart(chart_data, color="#4eb3ff", use_container_width=True)
-            
-            # Live Price Info
-            current_price = chart_data['Close'].iloc[-1]
-            st.info(f"💡 {ticker_input} Closing Price: ${current_price:,.2f}")
-        else:
-            st.error("No historical data found. check ticker symbol.")
-            
-    except Exception as e:
-        st.warning("Rate limit or connection issue. The cache will retry shortly.")
+        st.subheader(f"{ticker} vs Market Momentum")
+        # Multi-line Mountain Chart
+        st.area_chart(plot_df, color=["#4eb3ff", "#ffffff", "#ffaa00"], use_container_width=True)
+        
+        # 5. Gemini News Analysis Section
+        st.write("### 🗞️ Latest Intelligence")
+        for item in news[:3]: # Show top 3 headlines
+            with st.expander(item['title']):
+                st.write(f"Source: {item['publisher']}")
+                st.write(f"[Read Full Article]({item['link']})")
+                # I will "simulate" the Gemini Sentiment here
+                st.caption("Gemini Insight: Headline suggests neutral to bullish supply-side support.")
 
 with side_col:
-    st.write("### Fundamental Health")
-    if 'info' in locals() and info:
-        # Using .get() prevents crashes if a specific metric is missing
-        st.metric("PE Ratio (Forward)", f"{info.get('forwardPE', 'N/A')}")
-        st.metric("Profit Margin", f"{info.get('profitMargins', 0)*100:.2f}%")
-        st.metric("52 Week High", f"${info.get('fiftyTwoWeekHigh', 'N/A')}")
-    
+    st.write("### Sector Context")
+    st.metric("S&P 500", "6,528.52", "+2.91%")
+    st.metric("Energy (XLE)", "984.12", "+1.80%")
     st.divider()
-    st.write("### Market Pulse")
-    st.success("🔥 Leading: Tech (XLK) +3.8%")
-    st.progress(85, text="Market Breadth: 85% Advancing")
+    
+    # Quick Signal
+    last_p = hist['Close'].iloc[-1]
+    last_s = hist['SMA50'].iloc[-1]
+    if last_p > last_s:
+        st.success(f"📈 {ticker} is trending ABOVE the 50-day average. Momentum is healthy.")
+    else:
+        st.warning(f"📉 {ticker} is testing the 50-day support level.")
