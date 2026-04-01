@@ -1,65 +1,50 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
 
-# --- CACHE ENGINE ---
+# --- ANALYTICS ENGINE ---
 @st.cache_data(ttl=1800)
-def get_analysis_data(symbol):
-    try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        sector = info.get('sector', '')
-        # Dynamic benchmark mapping
-        b_symbol = "XLE" if "Energy" in sector else "XLI" if "Industrials" in sector else "SPY"
-        bench_info = yf.Ticker(b_symbol).info
-        return info, bench_info, b_symbol
-    except:
-        return None, None, None
+def get_advanced_metrics(symbol):
+    ticker = yf.Ticker(symbol)
+    # Get 6 months of 1-hour data for volume profile
+    hist = ticker.history(period="6mo", interval="1h")
+    info = ticker.info
+    
+    if not hist.empty:
+        # Calculate VWAP: Cumulative (Price * Volume) / Cumulative Volume
+        hist['PV'] = hist['Close'] * hist['Volume']
+        vwap = hist['PV'].sum() / hist['Volume'].sum()
+        
+        # Volume Profile (Horizontal Histogram)
+        # We bin prices to find the "Point of Control" (POC)
+        hist['Price_Bin'] = pd.cut(hist['Close'], bins=20)
+        volume_profile = hist.groupby('Price_Bin', observed=False)['Volume'].sum()
+        poc_bin = volume_profile.idxmax()
+        poc_price = (poc_bin.left + poc_bin.right) / 2
+        
+        return info, vwap, poc_price
+    return info, None, None
 
-# --- SIDEBAR CONTROL ---
-st.sidebar.header("Alpha Control")
-# Core holdings and watchlist
-target_stock = st.sidebar.selectbox("Select Ticker", ["SLB", "PBR-A", "CENX", "EQNR", "CNQ", "INTT"])
-shares = st.sidebar.number_input("Projected Shares", value=100, step=10)
+# --- UI LOGIC ---
+st.title("🚀 Alpha Terminal: The 80% Pursuit")
+target = st.sidebar.selectbox("Target", ["PBR-A", "CENX", "EQNR", "INTT", "CNQ"])
+info, vwap, poc = get_advanced_metrics(target)
 
-st.title(f"🛡️ Alpha Terminal: {target_stock}")
-info, bench, b_ticker = get_analysis_data(target_stock)
-
-if info:
-    # --- 1. PRICE POSITION ---
+if info and vwap:
+    # 1. THE "INSTITUTIONAL FLOOR"
     curr = info.get('currentPrice')
-    low_52, high_52 = info.get('fiftyTwoWeekLow'), info.get('fiftyTwoWeekHigh')
-    range_pos = ((curr - low_52) / (high_52 - low_52)) * 100
+    st.subheader("Institutional Footprint")
+    col1, col2 = st.columns(2)
     
-    st.subheader("Yearly Price Position")
-    st.select_slider("Range Status", 
-        options=["52W Low", "Value Zone", "Neutral", "Momentum Zone", "52W High"],
-        value=("Value Zone" if range_pos < 30 else "Momentum Zone" if range_pos > 70 else "Neutral"),
-        disabled=True)
+    # VWAP is the "Fair Value" for big banks
+    col1.metric("VWAP (6Mo)", f"${round(vwap, 2)}", f"{round(((curr-vwap)/vwap)*100, 1)}% vs Price")
     
-    # --- 2. SECTOR PRO METRICS ---
-    st.divider()
-    c1, c2, c3 = st.columns(3)
-    
-    s_pe = info.get('forwardPE', 0)
-    pe_delta = round(s_pe - bench.get('forwardPE', 0), 1)
-    c1.metric("Forward PE", f"{round(s_pe, 1)}", f"{pe_delta} vs {b_ticker}", delta_color="inverse")
-    
-    s_beta = info.get('beta', 0)
-    beta_delta = round(s_beta - bench.get('beta', 1.0), 2)
-    c2.metric("Beta", f"{round(s_beta, 2)}", f"{beta_delta} vs {b_ticker}", delta_color="inverse")
-    
-    ma50 = info.get('fiftyDayAverage', 1)
-    alpha = round(((curr - ma50) / ma50) * 100, 1)
-    c3.metric("Alpha (50D)", f"{alpha}%", f"{alpha}%")
+    # POC is the price where the most shares changed hands
+    col2.metric("Point of Control (POC)", f"${round(poc, 2)}", "Max Volume Node")
 
-    # --- 3. RISK CALCULATOR ---
+    # 2. ACTIONABLE LOGIC
     st.divider()
-    st.subheader("Allocation Impact")
-    position_value = curr * shares
-    st.write(f"Total Value of **{shares}** shares: **${position_value:,.2f}**")
-    
-    # Simple risk insight based on Beta
-    if s_beta < 1.0:
-        st.info(f"💡 This position acts as a **volatility buffer**. It is {abs(round((1-s_beta)*100))}% less reactive than the S&P 500.")
-    else:
-        st.warning(f"⚠️ This is an **aggressive position**. It will amplify market moves by {round((s_beta-1)*100)}%.")
+    if curr > vwap and curr > poc:
+        st.success(f"🔥 **BULLISH ACCUMULATION:** {target} is trading above institutional support. The 'Big Money' is in the green.")
+    elif curr < vwap and curr < poc:
+        st.warning(f"❄️ **INSTITUTIONAL DISTRIBUTION:** Price is below major volume nodes. Wait for a reclaim of ${round(vwap, 2)}.")
