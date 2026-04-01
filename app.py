@@ -1,44 +1,37 @@
 import streamlit as st
-import yfinance as yf
 
-# --- VOLATILITY ENGINE ---
-@st.cache_data(ttl=1800)
-def get_stop_loss_data(symbol):
-    ticker = yf.Ticker(symbol)
-    # Fetching 14 days of data for ATR calculation
-    hist = ticker.history(period="30d")
-    if not hist.empty:
-        # ATR Calculation (High - Low)
-        hist['Range'] = hist['High'] - hist['Low']
-        atr = hist['Range'].tail(14).mean()
-        return atr
-    return None
+# --- PROFIT TARGET LOGIC ---
+st.header("🎯 Target Alpha: The 80% Path")
 
-# --- UI LOGIC ---
-st.header("🛡️ Dynamic Stop Loss Control")
-buy_price = st.number_input("Your Purchase Price", value=0.0, step=0.10)
-target = st.sidebar.selectbox("Active Ticker", ["PBR-A", "CENX", "EQNR", "INTT", "CNQ"])
-
-atr = get_stop_loss_data(target)
-
-if buy_price > 0 and atr:
-    # Aggressive multiplier (2.5x) for 80% return targets
-    stop_dist = atr * 2.5
-    stop_price = buy_price - stop_dist
-    stop_pct = (stop_dist / buy_price) * 100
+if buy_price > 0:
+    # Calculate the 'Moon' price
+    target_80 = buy_price * 1.80
+    target_100 = buy_price * 2.00
+    
+    # Contextual Distance
+    curr_price = info.get('currentPrice', 0)
+    dist_to_80 = ((target_80 - curr_price) / curr_price) * 100
     
     st.subheader(f"Strategy for {target}")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     
-    # Custom Stop Level
-    c1.metric("Calculated Stop", f"${round(stop_price, 2)}", f"-{round(stop_pct, 1)}%", delta_color="inverse")
+    c1.metric("80% Target", f"${round(target_80, 2)}", f"{round(dist_to_80, 1)}% away")
+    c2.metric("100% Target", f"${round(target_100, 2)}", "The Double")
     
-    # Volatility Health
-    c2.metric("ATR (14D)", f"${round(atr, 2)}", "Daily 'Noise' Level")
-
-    # --- THE BOSS'S ADVICE ---
-    st.divider()
-    if stop_pct > 15:
-        st.warning(f"⚠️ **High Volatility:** {target} is swinging wide. This stop is deep to avoid being 'shaken out', but requires smaller position sizing.")
+    # 52-Week Comparison
+    high_52 = info.get('fiftyTwoWeekHigh', 1)
+    if target_80 > high_52:
+        st.info(f"🚀 **Breakout Required:** Your 80% target is above the 52-week high of ${high_52}. We are looking for a major structural move.")
     else:
-        st.success(f"✅ **Stable Trend:** This stop is tight enough to protect gains without choking the trade.")
+        st.success(f"📈 **Recovery Play:** Your 80% target is within the yearly range. Reclaiming the high hits your goal.")
+
+    # --- THE BOSS'S RISK/REWARD RATIO ---
+    # Compare Stop Loss distance to Profit Target distance
+    if 'stop_price' in locals():
+        risk = buy_price - stop_price
+        reward = target_80 - buy_price
+        rr_ratio = reward / risk if risk > 0 else 0
+        st.write(f"**Risk/Reward Ratio:** 1 : {round(rr_ratio, 1)}")
+        
+        if rr_ratio < 3:
+            st.warning("⚠️ **Tight Ratio:** The volatility-adjusted stop is wide. Consider reducing position size to maintain the 80% goal.")
