@@ -2,84 +2,80 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# 1. Mobile Setup
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
+# Mobile UI fixes
 st.markdown("""
     <style>
-    .stMarkdown, div[data-testid="stExpander"] label { font-size: 0.85rem !important; }
-    [data-testid="stLineChart"] { height: 200px !important; }
-    div[data-testid="stExpander"] { border: 1px solid #333; margin-bottom: 4px; }
+    [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
+    .stDownloadButton button { width: 100%; }
+    .stExpander { border: 1px solid #444 !important; margin-bottom: 8px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Watchlist & ETFs
+# Define Sector Map
 watchlists = {
     "Energy": ["PBR-A", "EQNR", "OVV", "PTEN", "CVX", "XOM", "SLB", "COP"],
     "Materials": ["CENX", "AA", "FCX", "NEM", "BHP", "RIO", "LIN", "SHW"],
     "Tech": ["MU", "LRCX", "ASX", "NVDA", "AAPL", "MSFT", "AMD", "AVGO"],
     "Industrials": ["CAT", "DE", "GE", "UNP", "HON", "RTX", "LMT", "UPS"]
 }
-benchmarks = {"Energy": "XLE", "Materials": "XLB", "Tech": "XLK", "Industrials": "XLI"}
+sector_etfs = {"Energy": "XLE", "Materials": "XLB", "Tech": "XLK", "Industrials": "XLI"}
 
-# 3. Simple Data Fetcher
-@st.cache_data(ttl=600)
-def fetch_alpha_data():
+@st.cache_data(ttl=300)
+def fetch_sector_batch(sector_name):
+    tickers = watchlists[sector_name]
+    etf = sector_etfs[sector_name]
+    
+    # BATCH DOWNLOAD (The Fix)
+    # One request for all stocks + the ETF baseline
+    all_to_load = tickers + [etf]
+    raw = yf.download(all_to_load, period="5d", interval="1d", group_by='ticker', progress=False)
+    
+    if raw.empty:
+        return None, None
+    
+    # Calculate ETF Baseline
+    etf_data = raw[etf]
+    etf_pc = ((etf_data['Close'].iloc[-1] - etf_data['Close'].iloc[-2]) / etf_data['Close'].iloc[-2]) * 100
+    
+    # Build Stock List
     results = []
-    sector_perf = {}
-    
-    for sector, etf in benchmarks.items():
+    for t in tickers:
         try:
-            # Get 2-day history for change calculation
-            s_data = yf.download(etf, period="2d", progress=False)['Close']
-            if len(s_data) < 2: continue
-            s_change = ((s_data.iloc[-1] - s_data.iloc[-2]) / s_data.iloc[-2]) * 100
-            sector_perf[sector] = float(s_change)
-            
-            for ticker in watchlists[sector]:
-                try:
-                    t_data = yf.download(ticker, period="2d", progress=False)['Close']
-                    if len(t_data) < 2: continue
-                    t_price = float(t_data.iloc[-1])
-                    t_change = ((t_data.iloc[-1] - t_data.iloc[-2]) / t_data.iloc[-2]) * 100
-                    
-                    results.append({
-                        "Ticker": ticker, "Price": t_price, "Change": float(t_change),
-                        "Sector": sector, "Alpha": float(t_change - s_change)
-                    })
-                except: continue
+            t_data = raw[t]
+            price = float(t_data['Close'].iloc[-1])
+            change = ((t_data['Close'].iloc[-1] - t_data['Close'].iloc[-2]) / t_data['Close'].iloc[-2]) * 100
+            results.append({
+                "Ticker": t, "Price": price, "Change": float(change), 
+                "Alpha": float(change - etf_pc)
+            })
         except: continue
-    
-    # Create DF with hardcoded columns to prevent KeyError
-    return pd.DataFrame(results, columns=["Ticker", "Price", "Change", "Sector", "Alpha"]), sector_perf
-
-# Run Engine
-df_all, sector_dict = fetch_alpha_data()
+        
+    return pd.DataFrame(results).sort_values(by="Alpha", ascending=False), etf_pc
 
 st.title("🛡️ Alpha Terminal")
 
-# 4. Display Logic
-if not sector_dict:
-    st.warning("Syncing market data... please refresh in a moment.")
-else:
-    # Sort sectors by strength
-    sorted_s = sorted(sector_dict.items(), key=lambda x: x[1], reverse=True)
-    sel_label = st.selectbox("Market Strength:", [f"{s} ({p:+.2f}%)" for s, p in sorted_s])
-    sel_name = sel_label.split(" (")[0]
+# 1. Sector Selection
+sel_name = st.selectbox("Market Strength:", list(watchlists.keys()))
+
+# 2. Load & Display
+with st.spinner(f"Syncing {sel_name} Data..."):
+    df, etf_val = fetch_sector_batch(sel_name)
+
+if df is not None and not df.empty:
+    st.subheader(f"Ranked: {sel_name} (Benchmark: {etf_val:+.2f}%)")
     
-    st.subheader(f"Ranked: {sel_name}")
-    
-    # Safely filter and sort
-    df_v = df_all[df_all['Sector'] == sel_name].copy()
-    if not df_v.empty:
-        df_v = df_v.sort_values(by="Alpha", ascending=False)
+    for _, row in df.iterrows():
+        c = "green" if row['Change'] > 0 else "red"
+        label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{c}[{row['Change']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
         
-        for _, row in df_v.iterrows():
-            c = "green" if row['Change'] > 0 else "red"
-            with st.expander(f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{c}[{row['Change']:+.2f}%]"):
-                # Fetch chart only on click
-                chart = yf.download(row['Ticker'], period="6m", progress=False)['Close']
-                if not chart.empty:
-                    st.line_chart(chart)
-                else:
-                    st.write("Chart data busy... try again.")
+        with st.expander(label):
+            # Fetch 6-month chart only when expanded to keep app fast
+            chart = yf.download(row['Ticker'], period="6m", progress=False)['Close']
+            if not chart.empty:
+                st.line_chart(chart)
+            else:
+                st.write("Chart sync pending...")
+else:
+    st.error("Connection Timeout. Please refresh the page.")
