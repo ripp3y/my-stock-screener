@@ -1,14 +1,29 @@
-# --- TIME TO TARGET ESTIMATOR ---
-if buy_price > 0 and atr > 0:
-    # How much price distance is left?
-    distance_left = target_80 - curr_price
+import streamlit as st
+import yfinance as yf
+
+# --- 1. INITIALIZE MEMORY (Top of Script) ---
+if 'buy_price' not in st.session_state:
+    st.session_state.buy_price = 0.0
+if 'atr' not in st.session_state:
+    st.session_state.atr = 0.0
+
+# --- 2. INPUTS (Sidebar) ---
+st.session_state.buy_price = st.sidebar.number_input(
+    "Actual Purchase Price", 
+    value=st.session_state.buy_price, 
+    step=0.1
+)
+
+# --- 3. THE 80% CALCULATION ENGINE ---
+if st.session_state.buy_price > 0:
+    target_80 = st.session_state.buy_price * 1.80
     
-    # Estimate days based on current volatility (ATR)
-    est_days = distance_left / atr
-    
-    st.subheader("📅 Target Timeline")
-    if est_days > 0:
-        st.write(f"At current volatility, the 'statistical path' to your 80% goal is roughly **{round(est_days)} market days**.")
-        st.caption("Note: This assumes linear trend continuation. Market conditions vary.")
-    else:
-        st.success("🎯 You are currently beyond your 80% target area. Hold or reassess for 100%!")
+    st.header("🎯 Target Alpha: The 80% Path")
+    st.success(f"🚀 **80% Target Price:** ${round(target_80, 2)}")
+
+    # --- 4. TIME TO TARGET (The Estimator) ---
+    # Only runs if we have both a price and volatility data
+    if st.session_state.atr > 0:
+        dist_to_go = target_80 - curr_price
+        days_est = dist_to_go / st.session_state.atr
+        st.info(f"📅 **Estimated Flight Time:** {round(days_est)} Market Days")
