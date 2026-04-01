@@ -79,7 +79,7 @@ with side_col:
     st.write("### Fundamental Health")
     if info:
         # Use .get() to handle missing data fields gracefully
-        st.metric("Forward PE", f"{info.get('forwardPE', 0):.2f}")
+        st.metric("Forward PE", f"{info.get('forwardPE', 0):.2f}"
         st.metric("Profit Margin", f"{info.get('profitMargins', 0)*100:.1f}%")
         st.metric("Dividend Yield", f"{info.get('dividendYield', 0)*100:.2f}%")
     
