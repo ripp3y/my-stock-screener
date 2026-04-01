@@ -1,7 +1,7 @@
 import streamlit as st
 import yfinance as yf
 
-# --- CACHE ENGINE: Essential to prevent IP lockout (cite: image_c59acc) ---
+# --- CACHE ENGINE: Prevents API blocks during rapid development (cite: image_c59acc) ---
 @st.cache_data(ttl=1800)
 def get_terminal_metrics(symbol):
     try:
@@ -12,11 +12,11 @@ def get_terminal_metrics(symbol):
 
 # --- UI HEADER ---
 st.title("🛡️ Alpha Terminal")
-symbol = "SLB" # Standard energy sector benchmark
+symbol = "SLB" 
 info = get_terminal_metrics(symbol)
 
 if info:
-    # Creating a cleaner 3-column dashboard (cite: image_c8d88b)
+    # Top Row: Primary Metrics (cite: image_c92b04)
     col1, col2, col3 = st.columns(3)
     
     # 1. Forward PE: Valuation
@@ -32,17 +32,18 @@ if info:
     ma50 = info.get('fiftyDayAverage')
     if price and ma50:
         alpha_val = round(((price - ma50) / ma50) * 100, 1)
-        # Delta shows green for positive performance (cite: image_c8d88b)
         col3.metric("Alpha (50D)", f"{alpha_val}%", delta=f"{alpha_val}%")
     else:
         col3.metric("Alpha (50D)", "N/A")
 
-    # --- NEW: VOLATILITY INSIGHT ---
+    # Lower Section: Risk Analysis (cite: image_c92b04)
     st.divider()
     if beta:
+        # Categorizes the stock based on its Beta coefficient
         status = "Conservative" if beta < 1.0 else "Aggressive"
-        st.info(f"**Current Profile:** {status} ({symbol} is {round((1-beta)*100)}% less volatile than the market)")
-
+        # Dynamic description based on current ticker
+        risk_desc = f"{symbol} is {abs(round((1-beta)*100))}% {'less' if beta < 1 else 'more'} volatile than the market"
+        st.info(f"**Current Profile:** {status} ({risk_desc})")
 else:
-    # Fallback to prevent app crash (cite: image_7f34e8)
-    st.warning("Data sync cooling down. Please wait 10-15 minutes for terminal reset.")
+    # Error state management
+    st.warning("Terminal cooling down. Metrics will restore automatically shortly.")
