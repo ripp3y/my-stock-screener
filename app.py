@@ -1,25 +1,34 @@
 import streamlit as st
 import yfinance as yf
 
-# 1. Define a cached function to fetch data
-@st.cache_data(ttl=600)  # Cache for 600 seconds (10 minutes)
-def get_stock_data(ticker_symbol):
-    ticker = yf.Ticker(ticker_symbol)
-    return ticker.info
+# --- ENGINE: Stop the Rate Limits ---
+@st.cache_data(ttl=600)  # Remembers data for 10 minutes
+def get_clean_data(symbol):
+    try:
+        ticker = yf.Ticker(symbol)
+        return ticker.info
+    except Exception:
+        return None
 
-# 2. Use the cached function
-info = get_stock_data("SLB")
+# --- UI: Render the Metrics ---
+st.title("Alpha Terminal")
+info = get_clean_data("SLB")
 
 if info:
     col1, col2 = st.columns(2)
     
-    # Render PE
+    # 1. Forward PE (Rounded for the terminal look)
     f_pe = round(info.get('forwardPE', 0), 1)
     col1.metric("Forward PE", f"{f_pe}")
     
-    # Render Yield (with decimal correction)
+    # 2. Div Yield (Fixed decimal logic)
     raw_yield = info.get('dividendYield', 0)
-    if raw_yield:
-        col2.metric("Div Yield", f"{round(raw_yield * 100, 2)}%")
+    # Most APIs return 0.03 for 3%. If it returns > 1, it's a glitch.
+    if raw_yield and raw_yield < 1.0:
+        formatted_yield = f"{round(raw_yield * 100, 2)}%"
     else:
-        col2.metric("Div Yield", "0.0%")
+        formatted_yield = "N/A"
+    
+    col2.metric("Div Yield", formatted_yield)
+else:
+    st.error("Terminal offline: Yahoo Rate Limit. Wait 5 minutes.")
