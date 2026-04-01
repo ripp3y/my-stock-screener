@@ -31,7 +31,7 @@ with st.expander(f"⭐ {ticker} View"):
         # SYNTAX FIX: Ensure all parentheses are closed in metrics (cite: image_7f1dc5.png)
         # Assuming 'info' is a dictionary containing your scraped ticker data
         f_pe = "21.4" # Placeholder for info.get('forwardPE')
-        st.metric("Forward PE", f"{f_pe}") 
+        st.metric("Forward PE", f"{info.get('forwardPE', 'N/A')}")
         
         # Area chart for the Mountain visual (cite: image_7f2225.png)
         st.area_chart(chart_data)
