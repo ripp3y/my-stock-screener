@@ -2,14 +2,18 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
+# 1. Advanced Mobile Optimization
 st.set_page_config(page_title="Alpha Terminal", layout="centered")
 
-# Mobile UI fixes
+# Mobile UI fixes for dense viewing
 st.markdown("""
     <style>
-    [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
-    .stDownloadButton button { width: 100%; }
-    .stExpander { border: 1px solid #444 !important; margin-bottom: 8px !important; }
+    .stMarkdown, div[data-testid="stExpander"] label { font-size: 0.85rem !important; line-height: 1.1 !important; }
+    h1 { font-size: 1.4rem !important; margin-bottom: 0px !important; }
+    .stButton>button { height: 2.2rem; font-size: 0.85rem; width: 100%; }
+    hr { margin: 0.4rem 0px !important; }
+    [data-testid="stLineChart"] { height: 220px !important; }
+    div[data-testid="stExpander"] { border: 1px solid #444 !important; margin-bottom: 8px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -28,8 +32,8 @@ def fetch_sector_batch(sector_name):
     etf = sector_etfs[sector_name]
     
     # BATCH DOWNLOAD (The Fix)
-    # One request for all stocks + the ETF baseline
     all_to_load = tickers + [etf]
+    # We pull 5 days to ensure we have yesterday's close for % calculations
     raw = yf.download(all_to_load, period="5d", interval="1d", group_by='ticker', progress=False)
     
     if raw.empty:
@@ -56,6 +60,11 @@ def fetch_sector_batch(sector_name):
 
 st.title("🛡️ Alpha Terminal")
 
+# Emergency Cache Clear
+if st.button("🔄 Force Data Refresh"):
+    st.cache_data.clear()
+    st.rerun()
+
 # 1. Sector Selection
 sel_name = st.selectbox("Market Strength:", list(watchlists.keys()))
 
@@ -68,14 +77,16 @@ if df is not None and not df.empty:
     
     for _, row in df.iterrows():
         c = "green" if row['Change'] > 0 else "red"
+        # The Expander label now matches your "Alpha" goal
         label = f"⭐ {row['Ticker']} | ${row['Price']:.2f} | :{c}[{row['Change']:+.2f}%] | Alpha: {row['Alpha']:+.1f}%"
         
         with st.expander(label):
             # Fetch 6-month chart only when expanded to keep app fast
-            chart = yf.download(row['Ticker'], period="6m", progress=False)['Close']
-            if not chart.empty:
-                st.line_chart(chart)
-            else:
-                st.write("Chart sync pending...")
+            with st.spinner("Fetching Chart..."):
+                chart = yf.download(row['Ticker'], period="6m", progress=False)['Close']
+                if not chart.empty:
+                    st.line_chart(chart)
+                else:
+                    st.write("Chart sync pending... (Try refreshing)")
 else:
-    st.error("Connection Timeout. Please refresh the page.")
+    st.error("Connection Timeout or No Data. Please check your internet or tap Refresh.")
