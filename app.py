@@ -1,35 +1,34 @@
 import streamlit as st
 import yfinance as yf
 
-# 1. THE CACHE: Mandatory to stop the YFRateLimitError
-@st.cache_data(ttl=1200) # Data stays valid for 20 minutes
-def get_terminal_data(symbol):
+# 1. THE CACHE: This remembers data for 30 minutes to stop the lockout
+@st.cache_data(ttl=1800) 
+def get_clean_ticker_info(symbol):
     try:
         ticker = yf.Ticker(symbol)
-        # Fetching .info triggers the network request
-        return ticker.info
+        # Accessing info triggers the network request
+        data = ticker.info
+        return data if data else None
     except Exception:
         return None
 
-# 2. THE UI RENDER
+# 2. THE UI ENGINE
 st.title("Alpha Terminal")
-info = get_terminal_data("SLB")
+info = get_clean_ticker_info("SLB")
 
 if info:
     col1, col2 = st.columns(2)
     
-    # Forward PE (cite: image_7f8e49.png)
-    f_pe = round(info.get('forwardPE', 0), 1)
-    col1.metric("Forward PE", f"{f_pe}")
+    # Forward PE (Rounded for terminal look)
+    f_pe = info.get('forwardPE')
+    col1.metric("Forward PE", f"{round(f_pe, 1)}" if f_pe else "N/A")
     
-    # Fixed Div Yield Logic (cite: image_bba5e4.png)
-    raw_yield = info.get('dividendYield', 0)
-    # Sanity check: Real yields are decimals (e.g., 0.03 = 3%)
-    if raw_yield and raw_yield < 1.0:
+    # Div Yield (Fixed logic to prevent 230.0% glitch)
+    raw_yield = info.get('dividendYield')
+    if raw_yield and 0 < raw_yield < 1.0:
         col2.metric("Div Yield", f"{round(raw_yield * 100, 2)}%")
     else:
-        # Prevents the glitchy 230% from showing (cite: image_bba5e4.png)
         col2.metric("Div Yield", "N/A")
 else:
-    # Shown only while Yahoo is actively blocking your IP (cite: image_c5a255.png)
-    st.warning("Rate limit active. Terminal cooling down for 15 minutes.")
+    # Error state while Yahoo is actively blocking you
+    st.error("Rate limit active. Terminal data will restore in ~20 minutes.")
