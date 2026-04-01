@@ -1,48 +1,54 @@
 import streamlit as st
 import yfinance as yf
 
+# --- CACHE ENGINE ---
 @st.cache_data(ttl=1800)
-def get_full_analysis(symbol):
+def get_analysis_data(symbol):
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
-        # Determine benchmark based on sector
+        # Auto-benchmark: XLE for Energy, XLI for Industrials
         sector = info.get('sector', '')
-        benchmark_symbol = "XLE" if "Energy" in sector else "XLI" if "Industrials" in sector else "SPY"
-        
-        benchmark = yf.Ticker(benchmark_symbol)
-        return info, benchmark.info, benchmark_symbol
+        b_symbol = "XLE" if "Energy" in sector else "XLI" if "Industrials" in sector else "SPY"
+        bench_info = yf.Ticker(b_symbol).info
+        return info, bench_info, b_symbol
     except:
         return None, None, None
 
+# --- SIDEBAR SELECTOR ---
+st.sidebar.header("Alpha Control")
+target_stock = st.sidebar.selectbox(
+    "Select Ticker", 
+    ["SLB", "PBR-A", "CENX", "EQNR"]
+)
+
 st.title("🛡️ Alpha Terminal: Sector Pro")
-symbol = "SLB"
-info, bench_info, b_ticker = get_full_analysis(symbol)
+info, bench, b_ticker = get_analysis_data(target_stock)
 
-if info and bench_info:
-    # --- ROW 1: Stock vs Benchmark ---
+if info and bench:
     st.subheader(f"Analysis vs. {b_ticker} Benchmark")
-    col1, col2, col3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
     
-    # PE Comparison
+    # Valuation vs Sector
     s_pe = info.get('forwardPE', 0)
-    b_pe = bench_info.get('forwardPE', 0)
-    col1.metric("Forward PE", f"{round(s_pe, 1)}", delta=f"{round(s_pe - b_pe, 1)} vs Sector", delta_color="inverse")
+    b_pe = bench.get('forwardPE', 1)
+    pe_delta = round(s_pe - b_pe, 1)
+    c1.metric("Forward PE", f"{round(s_pe, 1)}", f"{pe_delta} vs Sector", delta_color="inverse")
     
-    # Beta Comparison
+    # Risk vs Sector
     s_beta = info.get('beta', 0)
-    b_beta = bench_info.get('beta', 1.0) # ETFs usually near 1.0
-    col2.metric("Beta", f"{round(s_beta, 2)}", delta=f"{round(s_beta - b_beta, 2)} vs Sector", delta_color="inverse")
+    b_beta = bench.get('beta', 1.0)
+    beta_delta = round(s_beta - b_beta, 2)
+    c2.metric("Beta", f"{round(s_beta, 2)}", f"{beta_delta} vs Sector", delta_color="inverse")
     
-    # Price Trend (Alpha)
-    price = info.get('currentPrice', 0)
-    ma50 = info.get('fiftyDayAverage', 1)
-    alpha_val = round(((price - ma50) / ma50) * 100, 1)
-    col3.metric("Alpha (50D)", f"{alpha_val}%", delta=f"{alpha_val}%")
+    # Momentum
+    price, ma50 = info.get('currentPrice', 0), info.get('fiftyDayAverage', 1)
+    alpha = round(((price - ma50) / ma50) * 100, 1)
+    c3.metric("Alpha (50D)", f"{alpha}%", f"{alpha}%")
 
-    # --- ROW 2: Insights ---
+    # Dynamic Insights
     st.divider()
-    if s_pe < b_pe:
-        st.success(f"✅ **Value Play:** {symbol} is trading at a lower multiple than the {b_ticker} average.")
+    if s_pe > b_pe:
+        st.warning(f"⚠️ **Premium Pricing:** {target_stock} is more expensive than its sector benchmark.")
     else:
-        st.warning(f"⚠️ **Premium Pricing:** {symbol} is more expensive than its sector benchmark.")
+        st.success(f"✅ **Value Play:** {target_stock} is trading at a discount to the sector.")
