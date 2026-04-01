@@ -1,8 +1,8 @@
 import streamlit as st
 import yfinance as yf
 
-# --- DATA ENGINE (Stops the YFRateLimitError) ---
-@st.cache_data(ttl=600) # Cache for 10 minutes
+# --- DATA ENGINE (Fixes YFRateLimitError) ---
+@st.cache_data(ttl=600) # Cache data for 10 minutes
 def get_ticker_info(symbol):
     try:
         ticker = yf.Ticker(symbol)
@@ -17,13 +17,13 @@ info = get_ticker_info("SLB")
 if info:
     col1, col2 = st.columns(2)
     
-    # Rounded PE
+    # Clean Forward PE (cite: image_7f8e49.png)
     f_pe = round(info.get('forwardPE', 0), 1)
     col1.metric("Forward PE", f"{f_pe}")
     
-    # Fixed Div Yield Logic
+    # Fixed Div Yield Logic (cite: image_bba5e4.png)
     raw_yield = info.get('dividendYield', 0)
-    # Sanity check: Yields > 100% are usually API errors
+    # Sanity check: Real yields are decimals (e.g., 0.03 = 3%)
     if raw_yield and raw_yield < 1.0: 
         formatted_yield = f"{round(raw_yield * 100, 2)}%"
     else:
