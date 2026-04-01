@@ -1,32 +1,31 @@
 import streamlit as st
 import yfinance as yf
 
-# --- CACHE ENGINE: Essential for preventing API lockouts ---
+# --- CACHE ENGINE: Prevents Yahoo Finance lockouts ---
 @st.cache_data(ttl=1800)
-def get_alpha_terminal_data(symbol):
+def get_terminal_metrics(symbol):
     try:
         ticker = yf.Ticker(symbol)
-        # Fetching .info triggers the actual network request
         return ticker.info
     except Exception:
         return None
 
-# --- UI LAYOUT ---
+# --- UI DISPLAY ---
 st.title("Alpha Terminal")
-info = get_alpha_terminal_data("SLB")
+info = get_terminal_metrics("SLB")
 
 if info:
     col1, col2, col3 = st.columns(3)
     
-    # 1. Forward PE: Rounded to 1 decimal place
+    # Forward PE (cite: image_7f8e49)
     f_pe = info.get('forwardPE')
     col1.metric("Forward PE", f"{round(f_pe, 1)}" if f_pe else "N/A")
     
-    # 2. Beta: Market Sensitivity
+    # Beta: Market Sensitivity
     beta = info.get('beta')
     col2.metric("Beta", f"{round(beta, 2)}" if beta else "N/A")
     
-    # 3. Alpha (50D): Trend Performance
+    # Alpha (50D): Performance vs. Moving Average
     price = info.get('currentPrice')
     ma50 = info.get('fiftyDayAverage')
     if price and ma50:
@@ -35,5 +34,5 @@ if info:
     else:
         col3.metric("Alpha (50D)", "N/A")
 else:
-    # Safe error handling if the rate limit is hit
-    st.warning("Data sync cooling down. Metrics will restore automatically.")
+    # Safe fallback if rate limited
+    st.warning("Syncing data... metrics will update shortly.")
