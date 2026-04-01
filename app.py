@@ -1,45 +1,48 @@
 import streamlit as st
 import yfinance as yf
 
-# --- CACHE ENGINE: Essential for preventing API lockouts ---
 @st.cache_data(ttl=1800)
-def get_alpha_terminal_data(symbol):
+def get_full_analysis(symbol):
     try:
         ticker = yf.Ticker(symbol)
-        return ticker.info
-    except Exception:
-        return None
+        info = ticker.info
+        # Determine benchmark based on sector
+        sector = info.get('sector', '')
+        benchmark_symbol = "XLE" if "Energy" in sector else "XLI" if "Industrials" in sector else "SPY"
+        
+        benchmark = yf.Ticker(benchmark_symbol)
+        return info, benchmark.info, benchmark_symbol
+    except:
+        return None, None, None
 
-# --- UI RENDER ---
-st.title("🛡️ Alpha Terminal")
+st.title("🛡️ Alpha Terminal: Sector Pro")
 symbol = "SLB"
-info = get_alpha_terminal_data(symbol)
+info, bench_info, b_ticker = get_full_analysis(symbol)
 
-if info:
+if info and bench_info:
+    # --- ROW 1: Stock vs Benchmark ---
+    st.subheader(f"Analysis vs. {b_ticker} Benchmark")
     col1, col2, col3 = st.columns(3)
     
-    # 1. Valuation
-    f_pe = info.get('forwardPE')
-    col1.metric("Forward PE", f"{round(f_pe, 1)}" if f_pe else "N/A")
+    # PE Comparison
+    s_pe = info.get('forwardPE', 0)
+    b_pe = bench_info.get('forwardPE', 0)
+    col1.metric("Forward PE", f"{round(s_pe, 1)}", delta=f"{round(s_pe - b_pe, 1)} vs Sector", delta_color="inverse")
     
-    # 2. Risk Sensitivity
-    beta = info.get('beta')
-    col2.metric("Beta", f"{round(beta, 2)}" if beta else "N/A")
+    # Beta Comparison
+    s_beta = info.get('beta', 0)
+    b_beta = bench_info.get('beta', 1.0) # ETFs usually near 1.0
+    col2.metric("Beta", f"{round(s_beta, 2)}", delta=f"{round(s_beta - b_beta, 2)} vs Sector", delta_color="inverse")
     
-    # 3. Performance Trend
-    price = info.get('currentPrice')
-    ma50 = info.get('fiftyDayAverage')
-    if price and ma50:
-        alpha_val = round(((price - ma50) / ma50) * 100, 1)
-        col3.metric("Alpha (50D)", f"{alpha_val}%", delta=f"{alpha_val}%")
-    else:
-        col3.metric("Alpha (50D)", "N/A")
+    # Price Trend (Alpha)
+    price = info.get('currentPrice', 0)
+    ma50 = info.get('fiftyDayAverage', 1)
+    alpha_val = round(((price - ma50) / ma50) * 100, 1)
+    col3.metric("Alpha (50D)", f"{alpha_val}%", delta=f"{alpha_val}%")
 
-    # Dynamic Analysis Section
+    # --- ROW 2: Insights ---
     st.divider()
-    if beta:
-        status = "Conservative" if beta < 1.0 else "Aggressive"
-        risk_diff = abs(round((1 - beta) * 100))
-        st.info(f"**Current Profile:** {status} ({symbol} is {risk_diff}% {'less' if beta < 1 else 'more'} volatile than the market)")
-else:
-    st.warning("Data sync cooling down. Metrics will restore automatically.")
+    if s_pe < b_pe:
+        st.success(f"✅ **Value Play:** {symbol} is trading at a lower multiple than the {b_ticker} average.")
+    else:
+        st.warning(f"⚠️ **Premium Pricing:** {symbol} is more expensive than its sector benchmark.")
