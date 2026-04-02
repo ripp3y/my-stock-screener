@@ -1,4 +1,53 @@
-# --- STEP 6: THE EXECUTIVE SUMMARY ---
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import numpy as np
+
+# --- 1. CORE UI SETUP ---
+st.set_page_config(page_title="Strategic US Terminal", layout="wide")
+st.sidebar.header("🎯 Target Alpha Engine")
+buy_p = st.sidebar.number_input("Purchase Price", value=23.0)
+
+# --- 2. DATA ENGINE ---
+portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
+raw_data = yf.download(portfolio, period="2mo")['Close']
+returns_df = raw_data.pct_change().dropna()
+
+# --- 3. DIVERSIFICATION MODULE ---
+if not returns_df.empty:
+    corr_matrix = returns_df.corr()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    avg_corr = upper_tri.stack().mean()
+    div_score = round((1 - avg_corr) * 100, 1)
+    
+    st.subheader("🛡️ Portfolio Alpha Guardian")
+    st.metric(label="Diversification Score", value=f"{div_score}%")
+    st.caption(f"**Current Status:** Moderate (Avg Correlation: {round(avg_corr, 2)})")
+
+    # Risk Matrix
+    with st.expander("🔗 View Correlation Matrix"):
+        st.dataframe(corr_matrix.round(2), use_container_width=True)
+
+# --- 4. MOMENTUM GRID ---
+st.subheader("🔥 Sector Momentum (1mo)")
+cols = st.columns(4)
+grid_data = []
+
+for t in portfolio:
+    if t in raw_data.columns:
+        prices = raw_data[t].dropna()
+        if len(prices) > 1:
+            ret = round(((prices.iloc[-1] - prices.iloc[0]) / prices.iloc[0]) * 100, 2)
+            grid_data.append({"Ticker": t, "Return": ret})
+
+sorted_grid = sorted(grid_data, key=lambda x: x['Return'], reverse=True)
+
+for i, item in enumerate(sorted_grid):
+    with cols[i % 4]:
+        st.metric(label=item['Ticker'], value=f"{item['Return']}%", delta=item['Return'])
+
+# --- 5. EXECUTIVE SUMMARY (FIXED) ---
+# Restoring the 'st' call and sidebar logic
 st.sidebar.divider()
 st.sidebar.header("👔 Executive Directives")
 
@@ -6,14 +55,17 @@ for item in sorted_grid:
     ticker = item['Ticker']
     ret = item['Return']
     
-    # Simple logic based on your alpha milestones
     if ret > 50:
-        directive = "🎯 TARGET HIT: Consider 50% Trim"
+        directive = "🎯 TARGET HIT: Trim 50%"
     elif ret > 20:
         directive = "✅ STRONG: Hold & Trail"
     elif ret < 5:
-        directive = "⏳ LAGGARD: Re-evaluate Entry"
+        directive = "⏳ LAGGARD: Re-evaluate"
     else:
         directive = "📈 TRENDING: Neutral"
         
     st.sidebar.write(f"**{ticker}**: {directive}")
+
+# --- 6. RANKED FOOTER ---
+footer_str = " | ".join([f"{i['Ticker']}: {i['Return']}%" for i in sorted_grid])
+st.caption(f"📅 **Ranked Alpha:** {footer_str}")
