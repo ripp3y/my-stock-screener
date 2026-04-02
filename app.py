@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-# --- 1. CORE ENGINE & DATA ---
+# --- 1. CORE CONFIGURATION ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 raw_data = yf.download(portfolio, period="2mo")['Close']
@@ -14,7 +14,7 @@ st.sidebar.header("📊 Yield & Harvest Engine")
 selected = st.sidebar.selectbox("Select Asset", portfolio, index=0)
 cost_basis = st.sidebar.number_input(f"Avg Cost for {selected}", value=25.0)
 
-# High-Resolution Yield Tracking
+# Real-time Dividend/YOC Logic
 t_obj = yf.Ticker(selected)
 div_y = t_obj.info.get('dividendYield', 0)
 if div_y:
@@ -29,7 +29,7 @@ h_shares = st.sidebar.number_input(f"Shares of {h_ticker}", value=98)
 h_cash = (h_shares * 0.5) * raw_data[h_ticker].iloc[-1]
 st.sidebar.success(f"Harvested Cash: ${h_cash:,.2f}")
 
-# --- 3. RISK & SECTOR BALANCE ---
+# --- 3. RISK & SECTOR VISUALIZATION ---
 st.header("🛡️ Portfolio Alpha Guardian")
 col_a, col_b = st.columns([1, 1])
 
@@ -39,7 +39,7 @@ with col_a:
     st.write(f"## Diversification Score: {round((1-avg_corr)*100, 1)}%")
 
 with col_b:
-    # Sector Mapping based on current holdings
+    # Sector Mapping
     sectors = {"Energy": ["PBR", "EQNR", "CNQ", "XOM", "CVX"], 
                "Materials": ["CENX", "CF"], 
                "Industrials": ["GEV"]}
@@ -52,7 +52,7 @@ st.sidebar.divider()
 st.sidebar.header("🛒 Tactical Buy Zones")
 for t in portfolio:
     m_ret = round(((raw_data[t].iloc[-1] - raw_data[t].iloc[0]) / raw_data[t].iloc[0]) * 100, 2)
-    if m_ret < 20: # Identifying laggards for capital rotation
+    if m_ret < 20: # Deployment logic for laggards
         shares_to_buy = int(h_cash / raw_data[t].iloc[-1])
         st.sidebar.warning(f"**{t}**: Accumulation Zone")
         st.sidebar.caption(f"Deploy harvest into ~{shares_to_buy} shares")
