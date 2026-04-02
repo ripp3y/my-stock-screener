@@ -3,10 +3,11 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# --- 1. CORE INTERFACE ---
+# --- 1. CORE INTERFACE & SETTINGS ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 st.sidebar.header("🎯 Target Alpha Engine")
-global_buy = st.sidebar.number_input("Global Purchase Price", value=23.0)
+# Global purchase target for your energy/industrial pivot
+buy_p = st.sidebar.number_input("Global Purchase Price", value=23.0)
 
 # --- 2. DATA ENGINE ---
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
@@ -41,19 +42,19 @@ for i, item in enumerate(sorted_grid):
     with cols[i % 4]:
         st.metric(label=item['Ticker'], value=f"{item['Return']}%", delta=item['Return'])
 
-# --- 5. PROFIT HARVEST CALCULATOR (NEW) ---
+# --- 5. PROFIT HARVEST TOOL ---
 st.sidebar.divider()
 st.sidebar.header("💰 Profit Harvest Tool")
+# Dynamically selecting from your current top performers
 harvest_ticker = st.sidebar.selectbox("Select Ticker to Trim", ["EQNR", "CF"])
-shares_owned = st.sidebar.number_input(f"Shares of {harvest_ticker}", value=100)
+shares = st.sidebar.number_input(f"Shares of {harvest_ticker}", value=100)
 
-# Calculate 50% Trim Value
-current_price = raw_data[harvest_ticker].iloc[-1]
-harvest_cash = (shares_owned * 0.5) * current_price
+current_p = raw_data[harvest_ticker].iloc[-1]
+harvest_cash = (shares * 0.5) * current_p
 st.sidebar.success(f"Harvested Cash: ${harvest_cash:,.2f}")
-st.sidebar.caption(f"Based on 50% trim at ${round(current_price, 2)}")
+st.sidebar.caption(f"Based on 50% trim at ${round(current_p, 2)}")
 
-# --- 6. EXECUTIVE DIRECTIVES ---
+# --- 6. EXECUTIVE DIRECTIVES (Fixed Syntax) ---
 st.sidebar.divider()
 st.sidebar.header("👔 Executive Directives")
 for item in sorted_grid:
@@ -61,4 +62,16 @@ for item in sorted_grid:
     if ret > 45:
         st.sidebar.write(f"**{ticker}**: 🎯 TARGET HIT: Trim 50%")
     elif ret > 20:
-        st.sidebar.write(f"**{ticker}**: ✅ STRONG: Hold & Trail") [cite: image_706
+        st.sidebar.write(f"**{ticker}**: ✅ STRONG: Hold & Trail")
+    else:
+        st.sidebar.write(f"**{ticker}**: ⏳ WATCH: Laggard")
+
+# --- 7. TACTICAL BUY ZONES ---
+st.sidebar.divider()
+st.sidebar.header("🛒 Tactical Buy Zones")
+for item in sorted_grid:
+    if item['Return'] < 20:
+        st.sidebar.warning(f"**{item['Ticker']}**: Accumulation Zone")
+        # Direct calculation of rotation power
+        can_buy = int(harvest_cash / item['Price'])
+        st.sidebar.caption(f"Rotate cash into ~{can_buy} shares of {item['Ticker']}")
