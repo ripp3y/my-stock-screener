@@ -1,8 +1,8 @@
-# --- STEP 1: INITIALIZATION (MUST BE AT THE TOP) ---
-import streamlit as st  # Defines 'st'
-import yfinance as yf    # Enables live market data
+# --- STEP 1: INITIALIZE (MUST BE LINES 1 & 2) ---
+import streamlit as st  # This defines 'st' and kills the NameError
+import yfinance as yf    # This powers your live market data
 
-# --- STEP 2: SIDEBAR INPUTS ---
+# --- STEP 2: USER INPUT GATE ---
 buy_price = st.sidebar.number_input("Actual Purchase Price", value=0.0, step=0.1)
 ticker_input = st.sidebar.text_input("Ticker for Volume Check", value="PBR")
 
@@ -26,8 +26,8 @@ if ticker_input:
         curr_vol = data['Volume'].iloc[-1]
         vol_ratio = curr_vol / avg_vol
         
-        # This checks for 'Big Money' entering the position
         if vol_ratio > 1.5:
             st.success(f"🔥 VOLUME SURGE: {round(vol_ratio, 2)}x Normal Volume")
+            st.info("Institutional 'Big Money' may be entering.")
         else:
             st.write(f"Volume is normal ({round(vol_ratio, 2)}x avg).")
