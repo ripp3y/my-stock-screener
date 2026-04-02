@@ -1,28 +1,27 @@
-# --- THE POWER SOURCE ---
-import streamlit as st  # If this isn't Line 1, 'st' will never be defined
-import yfinance as yf
+# --- STEP 1: THE POWER SOURCE (Must be Lines 1 & 2) ---
+import streamlit as st  # This defines 'st' so Line 5 works
+import yfinance as yf    # This defines 'yf' for data fetching
 
-# --- THE INPUT GATE ---
-# We define the price here so the terminal knows what to calculate
+# --- STEP 2: THE INPUT GATE ---
+# This ensures buy_price is defined for the entire script
 buy_price = st.sidebar.number_input("Actual Purchase Price", value=0.0, step=0.1)
 
-# --- THE ALPHA ENGINE ---
-# We only open the logic gate IF buy_price exists
+# --- STEP 3: THE ALPHA ENGINE ---
 if buy_price > 0:
+    # Your core logic: Target = Entry * 1.80
     target_80 = buy_price * 1.80
     
-    # UI Elements
     st.header("🎯 Target Alpha: The 80% Path")
     st.success(f"🚀 **80% Target Price:** ${round(target_80, 2)}")
-    
-    # Flight Estimate
+
+    # --- STEP 4: FLIGHT ESTIMATE ---
     st.subheader("📅 Flight Estimate")
     
-    # Look for 'atr' variable from your other logic blocks
-    if 'atr' in locals() and atr > 0:
+    # This safely checks for volatility data from your other modules
+    if 'atr' in locals() and 'info' in locals():
         current_price = info.get('currentPrice', buy_price)
         days_est = (target_80 - current_price) / atr
         st.info(f"Estimated Arrival: ~{int(days_est)} Trading Days")
     else:
-        # This keeps the UI clean without background crashes
+        # Clears the background crash and provides a clean status
         st.warning("Fetch ATR data to calculate arrival timeline.")
