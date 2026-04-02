@@ -2,34 +2,30 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-# --- STEP 1: UI & SIDEBAR ---
+# --- 1. UI SETUP ---
 st.sidebar.header("🎯 Target Alpha Engine")
 buy_p = st.sidebar.number_input("Purchase Price", value=23.0)
 
-# --- STEP 2: STABLE DATA DOWNLOAD ---
+# --- 2. STABLE DATA ENGINE ---
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
-
-# Downloading all at once ensures matching dates to prevent ValueErrors
 raw_data = yf.download(portfolio, period="2mo")['Close']
 returns_df = raw_data.pct_change().dropna()
 
-# --- STEP 3: CORRELATION MATRIX ---
+# --- 3. CORRELATION MATRIX ---
 st.subheader("🔗 Portfolio Correlation Matrix")
 if not returns_df.empty:
     corr_matrix = returns_df.corr().round(2)
-    # Native styling to avoid Matplotlib/Plotly dependency errors
+    # Using built-in styling to avoid matplotlib/plotly errors
     st.dataframe(
         corr_matrix.style.background_gradient(cmap='RdYlGn', vmin=-1, vmax=1),
         use_container_width=True
     )
-else:
-    st.warning("Gathering market data... please refresh in a moment.")
 
-# --- STEP 4: MOMENTUM GRID (HEATMAP) ---
+# --- 4. MOMENTUM GRID ---
 st.subheader("🔥 Sector Momentum (1mo)")
 cols = st.columns(4)
-# Calculate monthly returns for the grid
 grid_data = []
+
 for t in portfolio:
     if t in raw_data.columns:
         prices = raw_data[t].dropna()
@@ -44,6 +40,7 @@ for i, item in enumerate(sorted_grid):
         color = "normal" if item['Return'] > 0 else "inverse"
         st.metric(label=item['Ticker'], value=f"{item['Return']}%", delta=item['Return'], delta_color=color)
 
-# --- STEP 5: RANKED FOOTER ---
+# --- 5. FIXED RANKED FOOTER ---
+# Resolved the SyntaxError by ensuring the f-string brace is closed
 footer_str = " | ".join([f"{i['Ticker']}: {i['Return']}%" for i in sorted_grid])
-st.caption(f"📅 **Last Month Performance (Ranked):** {footer
+st.caption(f"📅 **Last Month Performance (Ranked):** {footer_str}")
