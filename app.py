@@ -2,18 +2,19 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import plotly.express as px
 
-# --- 1. CORE ENGINE ---
+# --- 1. CORE INTERFACE ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 raw_data = yf.download(portfolio, period="2mo")['Close']
 
-# --- 2. YIELD & HARVEST ENGINE ---
+# --- 2. YIELD & HARVEST ENGINE (SIDEBAR) ---
 st.sidebar.header("📊 Yield & Harvest Engine")
 selected = st.sidebar.selectbox("Select Asset", portfolio, index=0)
 cost_basis = st.sidebar.number_input(f"Avg Cost for {selected}", value=25.0)
 
-# Dividend Calculation logic
+# Dividend logic for PBR/EQNR high-yield tracking
 t_obj = yf.Ticker(selected)
 div_y = t_obj.info.get('dividendYield', 0)
 if div_y:
@@ -28,18 +29,28 @@ h_shares = st.sidebar.number_input(f"Shares of {h_ticker}", value=98)
 h_cash = (h_shares * 0.5) * raw_data[h_ticker].iloc[-1]
 st.sidebar.success(f"Harvested Cash: ${h_cash:,.2f}")
 
-# --- 3. ALPHA GUARDIAN ---
+# --- 3. RISK & SECTOR BALANCE ---
 st.subheader("🛡️ Portfolio Alpha Guardian")
-rets = raw_data.pct_change().dropna()
-avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
-st.write(f"### Diversification Score: {round((1-avg_corr)*100, 1)}%")
+col_a, col_b = st.columns([1, 1])
 
-# --- 4. TACTICAL BUY ZONES ---
+with col_a:
+    rets = raw_data.pct_change().dropna()
+    avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
+    st.write(f"### Diversification Score: {round((1-avg_corr)*100, 1)}%")
+
+with col_b:
+    # Quick Sector Weighting Visual
+    sectors = {"Energy": ["PBR", "EQNR", "CNQ", "XOM", "CVX"], "Materials": ["CENX", "CF"], "Industrials": ["GEV"]}
+    weight_data = pd.DataFrame([{"Sector": s, "Weight": len(t)} for s, t in sectors.items()])
+    fig = px.pie(weight_data, values='Weight', names='Sector', hole=.4, height=300)
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- 4. TACTICAL DEPLOYMENT ---
 st.sidebar.divider()
 st.sidebar.header("🛒 Tactical Buy Zones")
 for t in portfolio:
     m_ret = round(((raw_data[t].iloc[-1] - raw_data[t].iloc[0]) / raw_data[t].iloc[0]) * 100, 2)
-    if m_ret < 20: # Laggard detection logic
+    if m_ret < 20: # Laggard logic
         shares_to_buy = int(h_cash / raw_data[t].iloc[-1])
         st.sidebar.warning(f"**{t}**: Accumulation Zone")
         st.sidebar.caption(f"Deploy harvest into ~{shares_to_buy} shares")
