@@ -1,40 +1,49 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 
-# --- STEP 1: DATA HARVESTING ---
+# --- STEP 1: UI & SIDEBAR ---
+st.sidebar.header("🎯 Target Alpha Engine")
+buy_p = st.sidebar.number_input("Purchase Price", value=23.0)
+
+# --- STEP 2: STABLE DATA DOWNLOAD ---
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
-price_data = {}
 
-for t in portfolio:
-    # Fetching 2 months to ensure we have a solid 30 days of change data
-    df = yf.download(t, period="2mo")
-    if not df.empty:
-        # We use daily percentage change for correlation, not raw price
-        price_data[t] = df['Close'].pct_change()
+# Downloading all at once ensures matching dates to prevent ValueErrors
+raw_data = yf.download(portfolio, period="2mo")['Close']
+returns_df = raw_data.pct_change().dropna()
 
-# Create a single Master DataFrame of returns
-returns_df = pd.DataFrame(price_data).dropna()
-
-# --- STEP 2: CORRELATION CALCULATION ---
-# The .corr() method uses Pearson correlation by default (-1 to +1)
-corr_matrix = returns_df.corr().round(2)
-
-# --- STEP 3: VISUAL MATRIX ---
+# --- STEP 3: CORRELATION MATRIX ---
 st.subheader("🔗 Portfolio Correlation Matrix")
-st.write("Checking how closely your picks move together (1.0 = Identical).")
+if not returns_df.empty:
+    corr_matrix = returns_df.corr().round(2)
+    # Native styling to avoid Matplotlib/Plotly dependency errors
+    st.dataframe(
+        corr_matrix.style.background_gradient(cmap='RdYlGn', vmin=-1, vmax=1),
+        use_container_width=True
+    )
+else:
+    st.warning("Gathering market data... please refresh in a moment.")
 
-# Using Pandas Styling to create a "Heatmap" without extra libraries
-st.dataframe(
-    corr_matrix.style.background_gradient(cmap='RdYlGn', vmin=-1, vmax=1),
-    use_container_width=True
-)
+# --- STEP 4: MOMENTUM GRID (HEATMAP) ---
+st.subheader("🔥 Sector Momentum (1mo)")
+cols = st.columns(4)
+# Calculate monthly returns for the grid
+grid_data = []
+for t in portfolio:
+    if t in raw_data.columns:
+        prices = raw_data[t].dropna()
+        if len(prices) > 1:
+            abs_ret = round(((prices.iloc[-1] - prices.iloc[0]) / prices.iloc[0]) * 100, 2)
+            grid_data.append({"Ticker": t, "Return": abs_ret})
 
-# --- STEP 4: DIVERSIFICATION INTEL ---
-# Identify the highest and lowest correlations for quick insight
-st.info("💡 **Diversification Tip:** Look for values below **0.3** to find true 'Zigs' when the market 'Zags'.")
+sorted_grid = sorted(grid_data, key=lambda x: x['Return'], reverse=True)
 
-# --- STEP 5: THE UPDATED RANKED FOOTER ---
-# (Keeping your existing logic stable)
-st.caption("📅 **Last Month Performance:** Sorted by Alpha Rank")
+for i, item in enumerate(sorted_grid):
+    with cols[i % 4]:
+        color = "normal" if item['Return'] > 0 else "inverse"
+        st.metric(label=item['Ticker'], value=f"{item['Return']}%", delta=item['Return'], delta_color=color)
+
+# --- STEP 5: RANKED FOOTER ---
+footer_str = " | ".join([f"{i['Ticker']}: {i['Return']}%" for i in sorted_grid])
+st.caption(f"📅 **Last Month Performance (Ranked):** {footer
