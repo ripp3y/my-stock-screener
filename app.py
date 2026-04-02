@@ -3,18 +3,18 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# --- 1. CORE SETTINGS ---
+# --- 1. CORE INTERFACE ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 st.sidebar.header("🎯 Target Alpha Engine")
 buy_p = st.sidebar.number_input("Global Purchase Price", value=23.0)
 
 # --- 2. DATA ENGINE ---
-# Your high-conviction energy & industrial pivot
+# Energy & Industrial Focus
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 raw_data = yf.download(portfolio, period="2mo")['Close']
 returns_df = raw_data.pct_change().dropna()
 
-# --- 3. RISK GUARDIAN & CORRELATION ---
+# --- 3. RISK GUARDIAN ---
 if not returns_df.empty:
     corr_matrix = returns_df.corr()
     upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
@@ -22,10 +22,10 @@ if not returns_df.empty:
     div_score = round((1 - avg_corr) * 100, 1)
     
     st.subheader("🛡️ Portfolio Alpha Guardian")
-    st.metric(label="Diversification Score", value=f"{div_score}%")
+    st.write(f"### Diversification Score: {div_score}%")
     st.caption(f"**Current Status:** Moderate (Avg Correlation: {round(avg_corr, 2)})")
 
-# --- 4. SECTOR MOMENTUM GRID ---
+# --- 4. MOMENTUM GRID ---
 st.subheader("🔥 Sector Momentum (1mo)")
 cols = st.columns(4)
 grid_data = []
@@ -46,24 +46,19 @@ for i, item in enumerate(sorted_grid):
 # --- 5. EXECUTIVE DIRECTIVES (SIDEBAR) ---
 st.sidebar.divider()
 st.sidebar.header("👔 Executive Directives")
-
 for item in sorted_grid:
     ticker, ret = item['Ticker'], item['Return']
     if ret > 45:
-        icon, note = "🎯", "TARGET HIT: Trim 50%"
+        st.sidebar.write(f"**{ticker}**: 🎯 TARGET HIT: Trim 50%")
     elif ret > 20:
-        icon, note = "✅", "STRONG: Hold & Trail"
+        st.sidebar.write(f"**{ticker}**: ✅ STRONG: Hold & Trail")
     else:
-        icon, note = "⏳", "WATCH: Laggard"
-    st.sidebar.write(f"**{ticker}**: {icon} {note}")
+        st.sidebar.write(f"**{ticker}**: ⏳ WATCH: Laggard")
 
 # --- 6. TACTICAL BUY ZONES (SIDEBAR) ---
-# Resolves the NameError by keeping logic within the 'st' scope
 st.sidebar.divider()
 st.sidebar.header("🛒 Tactical Buy Zones")
-
 for item in sorted_grid:
-    # Alert if return is low or ticker is near the buy price
-    if item['Return'] < 18:
-        st.sidebar.warning(f"**{ticker}**: Accumulation Zone")
+    if item['Return'] < 20:
+        st.sidebar.warning(f"**{item['Ticker']}**: Accumulation Zone")
         st.sidebar.caption(f"Potential value entry at ${round(item['Price'], 2)}")
