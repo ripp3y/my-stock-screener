@@ -3,17 +3,17 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-# --- 1. TERMINAL CONFIGURATION ---
+# --- 1. CORE ENGINE ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 raw_data = yf.download(portfolio, period="2mo")['Close']
 
-# --- 2. YIELD & HARVEST ENGINE (SIDEBAR) ---
+# --- 2. YIELD & HARVEST ENGINE ---
 st.sidebar.header("📊 Yield & Harvest Engine")
-selected = st.sidebar.selectbox("Select Asset", portfolio, index=0) # Default PBR
+selected = st.sidebar.selectbox("Select Asset", portfolio, index=0)
 cost_basis = st.sidebar.number_input(f"Avg Cost for {selected}", value=25.0)
 
-# Dividend/Yield Logic
+# Dividend Calculation logic
 t_obj = yf.Ticker(selected)
 div_y = t_obj.info.get('dividendYield', 0)
 if div_y:
@@ -25,10 +25,8 @@ st.sidebar.divider()
 st.sidebar.header("💰 Profit Harvest Tool")
 h_ticker = st.sidebar.selectbox("Trim Target", ["EQNR", "CF"])
 h_shares = st.sidebar.number_input(f"Shares of {h_ticker}", value=98)
-h_price = raw_data[h_ticker].iloc[-1]
-h_cash = (h_shares * 0.5) * h_price
+h_cash = (h_shares * 0.5) * raw_data[h_ticker].iloc[-1]
 st.sidebar.success(f"Harvested Cash: ${h_cash:,.2f}")
-st.sidebar.caption(f"Trim Price: ${round(h_price, 2)}")
 
 # --- 3. ALPHA GUARDIAN ---
 st.subheader("🛡️ Portfolio Alpha Guardian")
@@ -36,21 +34,12 @@ rets = raw_data.pct_change().dropna()
 avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
 st.write(f"### Diversification Score: {round((1-avg_corr)*100, 1)}%")
 
-# --- 4. SECTOR MOMENTUM GRID ---
-st.subheader("🔥 Sector Momentum (1mo)")
-cols = st.columns(4)
-grid_data = []
-for i, t in enumerate(portfolio):
-    m_ret = round(((raw_data[t].iloc[-1] - raw_data[t].iloc[0]) / raw_data[t].iloc[0]) * 100, 2)
-    grid_data.append({"Ticker": t, "Return": m_ret, "Price": raw_data[t].iloc[-1]})
-    with cols[i % 4]:
-        st.metric(t, f"{m_ret}%", delta=m_ret)
-
-# --- 5. TACTICAL DEPLOYMENT ---
+# --- 4. TACTICAL BUY ZONES ---
 st.sidebar.divider()
 st.sidebar.header("🛒 Tactical Buy Zones")
-for item in grid_data:
-    if item['Return'] < 20:
-        can_buy = int(h_cash / item['Price'])
-        st.sidebar.warning(f"**{item['Ticker']}**: Accumulation Zone")
-        st.sidebar.caption(f"Deploy harvest into ~{can_buy} shares")
+for t in portfolio:
+    m_ret = round(((raw_data[t].iloc[-1] - raw_data[t].iloc[0]) / raw_data[t].iloc[0]) * 100, 2)
+    if m_ret < 20: # Laggard detection logic
+        shares_to_buy = int(h_cash / raw_data[t].iloc[-1])
+        st.sidebar.warning(f"**{t}**: Accumulation Zone")
+        st.sidebar.caption(f"Deploy harvest into ~{shares_to_buy} shares")
