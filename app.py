@@ -3,59 +3,57 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.express as px
+from datetime import datetime
 
-# --- 1. RESILIENT DATA FETCHING ---
-# Cache data for 15 mins (900 seconds) to avoid Rate Limits
-@st.cache_data(ttl=900)
-def get_portfolio_data(tickers):
+# --- 1. RESILIENT DATA ARCHITECTURE ---
+# Cache portfolio prices for 1 hour to prevent 429 errors
+@st.cache_data(ttl=3600)
+def fetch_resilient_data(tickers):
     try:
-        data = yf.download(tickers, period="2mo")['Close']
-        return data
-    except Exception as e:
-        st.error(f"Throttling Detected: {e}")
+        return yf.download(tickers, period="2mo")['Close']
+    except Exception:
         return None
+
+# Cache ticker info (Dividends/Beta) for 24 hours as it changes slowly
+@st.cache_data(ttl=86400)
+def fetch_ticker_stats(ticker):
+    try:
+        return yf.Ticker(ticker).info
+    except Exception:
+        return {}
 
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
-raw_data = get_portfolio_data(portfolio)
+raw_data = fetch_resilient_data(portfolio)
 
 if raw_data is not None:
-    # --- 2. YIELD & HARVEST ENGINE ---
+    # --- 2. YIELD ENGINE ---
     st.sidebar.header("📊 Yield & Harvest Engine")
-    selected = st.sidebar.selectbox("Select Asset", portfolio, index=0)
+    selected = st.sidebar.selectbox("Select Asset", portfolio)
     cost_basis = st.sidebar.number_input(f"Avg Cost for {selected}", value=25.0)
 
-    # Cache Ticker Info to avoid redundant API calls
-    @st.cache_data(ttl=3600)
-    def get_ticker_info(ticker):
-        return yf.Ticker(ticker).info
-
-    info = get_ticker_info(selected)
-    div_y = info.get('dividendYield', 0)
+    stats = fetch_ticker_stats(selected)
+    div_y = stats.get('dividendYield', 0)
+    
     if div_y:
         ann_div = div_y * raw_data[selected].iloc[-1]
         yoc = (ann_div / cost_basis) * 100
         st.sidebar.metric("Yield on Cost", f"{round(yoc, 2)}%")
-
-    # --- 3. HARVEST TOOL & ALPHA GUARDIAN ---
-    # (Previous logic for Diversification Score and Sector Pie remains stable)
-    st.sidebar.divider()
-    st.sidebar.header("💰 Profit Harvest Tool")
-    h_ticker = st.sidebar.selectbox("Trim Target", ["EQNR", "CF"])
-    h_cash = (98 * 0.5) * raw_data[h_ticker].iloc[-1]
-    st.sidebar.success(f"Harvested Cash: ${h_cash:,.2f}")
-
+    
+    # --- 3. ALPHA GUARDIAN VISUALS ---
     st.header("🛡️ Portfolio Alpha Guardian")
-    col_a, col_b = st.columns([1, 1])
+    col_a, col_b = st.columns(2)
+    
     with col_a:
         rets = raw_data.pct_change().dropna()
         avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
         st.write(f"## Diversification Score: {round((1-avg_corr)*100, 1)}%")
+        st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
 
     with col_b:
-        sectors = {"Energy": ["PBR", "EQNR", "CNQ", "XOM", "CVX"], "Materials": ["CENX", "CF"], "Industrials": ["GEV"]}
-        weight_data = pd.DataFrame([{"Sector": s, "Weight": len(t)} for s, t in sectors.items()])
-        fig = px.pie(weight_data, values='Weight', names='Sector', hole=.4, height=350)
-        st.plotly_chart(fig)
+        # Static weights based on your current strategy
+        sectors = {"Energy": 5, "Materials": 2, "Industrials": 1}
+        fig = px.pie(values=list(sectors.values()), names=list(sectors.keys()), hole=.4)
+        st.plotly_chart(fig, use_container_width=True)
 else:
-    st.warning("🔄 System cooling down. Data will refresh shortly once rate limits reset.")
+    st.error("🛑 Yahoo Finance Rate Limit Active. Please wait 15-30 minutes for the reset.")
