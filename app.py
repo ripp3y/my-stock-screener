@@ -3,55 +3,55 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
 import random
+import os
 
-# --- 1. CORE ARCHITECTURE ---
+# --- 1. CORE SYSTEM CONFIG ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
-# Persistent State Engine
-if 'market_data' not in st.session_state:
-    st.session_state.market_data = None
-if 'sync_log' not in st.session_state:
-    st.session_state.sync_log = "Never"
+# Persistent state & file-backups
+SAVE_FILE = "terminal_alpha_state.csv"
+if 'data' not in st.session_state:
+    if os.path.exists(SAVE_FILE):
+        st.session_state.data = pd.read_csv(SAVE_FILE, index_col=0, parse_dates=True)
+    else:
+        st.session_state.data = None
 
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 
-# --- 2. STEALTH SYNC PROTOCOL ---
+# --- 2. STEALTH SYNC ENGINE ---
 def execute_stealth_sync():
     try:
-        # Human-mimicry delay
-        time.sleep(random.uniform(4.0, 7.5))
+        # Mimic human behavior
+        time.sleep(random.uniform(5.0, 8.0))
         
-        # Pulling 3-month performance for Alpha Guardian calculation
         fresh_data = yf.download(portfolio, period="3mo", progress=False)['Close']
         
         if not fresh_data.empty:
-            st.session_state.market_data = fresh_data
-            st.session_state.sync_log = datetime.now().strftime("%H:%M:%S")
-            st.toast("Alpha Intelligence Synced", icon="🥷")
+            st.session_state.data = fresh_data
+            fresh_data.to_csv(SAVE_FILE) # Persistent backup
+            st.toast("Alpha State Saved to Disk", icon="💾")
     except Exception:
-        # Retention logic: fail silently and keep dashboard active
-        st.sidebar.error("Yahoo Lockout. Retry in 15m.")
+        st.sidebar.error("Yahoo Lockout Active. Using Cached Alpha State.")
 
 # --- 3. COMMAND CENTER ---
 st.sidebar.header("🕹️ Command Center")
 if st.sidebar.button("🔄 Stealth Sync"):
     execute_stealth_sync()
 
-st.sidebar.write(f"**Status:** {'Engaged' if st.session_state.market_data is not None else 'Cool-down'}")
-st.sidebar.write(f"**Last Update:** {st.session_state.sync_log}")
+st.sidebar.write(f"**Status:** {'Data Cached' if st.session_state.data is not None else 'Cool-down'}")
 st.sidebar.divider()
 
 # --- 4. ALPHA GUARDIAN DASHBOARD ---
-if st.session_state.market_data is not None:
-    df = st.session_state.market_data
+if st.session_state.data is not None:
+    df = st.session_state.data
     st.header("🛡️ Portfolio Alpha Guardian")
     
     col_a, col_b = st.columns(2)
     with col_a:
-        # Metric tracking for your 70.3% diversification goal
+        # Tracking the 70.3% goal
         rets = df.pct_change().dropna()
         avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
         st.metric("Diversification Score", f"{round((1-avg_corr)*100, 1)}%")
@@ -62,20 +62,13 @@ if st.session_state.market_data is not None:
         fig = px.pie(values=list(sectors.values()), names=list(sectors.keys()), hole=.4)
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- 5. PROFIT HARVEST TOOL ---
-    st.sidebar.header("💰 Profit Harvest Tool")
+    # --- 5. PROFIT HARVEST ENGINE ---
+    st.sidebar.header("📊 Profit Harvest Engine")
     asset = st.sidebar.selectbox("Asset", portfolio)
-    cost = st.sidebar.number_input(f"Basis for {asset}", value=25.0)
+    basis = st.sidebar.number_input(f"Basis for {asset}", value=25.0)
     current = df[asset].iloc[-1]
     
-    # Live Performance Metrics
-    yoc = ((current / cost) - 1) * 100
+    yoc = ((current / basis) - 1) * 100
     st.sidebar.metric(f"Current {asset}", f"${current:.2f}", f"{yoc:.1f}% YoC")
-    
-    # Harvest logic for the $2,045.50 EQNR target
-    if asset == "EQNR":
-        shares = st.sidebar.number_input("Shares to Trim", value=98)
-        harvest = shares * current
-        st.sidebar.success(f"Harvested Cash: ${harvest:,.2f}")
 else:
-    st.info("💡 Terminal is in stealth cool-down. Please wait 15 minutes before re-engaging market data.")
+    st.info("💡 Terminal is in stealth cool-down. Wait 15 minutes before re-engaging market data.")
