@@ -5,10 +5,10 @@ import numpy as np
 import plotly.express as px
 from datetime import datetime
 
-# --- 1. TERMINAL CONFIGURATION ---
+# --- 1. CORE ARCHITECTURE ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
-# Initialize persistent session storage
+# Persistent storage to handle YFRateLimitError
 if 'portfolio_data' not in st.session_state:
     st.session_state.portfolio_data = None
 if 'last_sync' not in st.session_state:
@@ -16,53 +16,49 @@ if 'last_sync' not in st.session_state:
 
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 
-# --- 2. COMMAND CENTER (SIDEBAR) ---
+# --- 2. COMMAND CENTER ---
 st.sidebar.header("🕹️ Command Center")
 
-# Sync function to handle Yahoo Finance blocks
 if st.sidebar.button("🔄 Sync Terminal"):
     try:
-        with st.spinner("Bypassing Rate Limits..."):
-            # Download price data
+        with st.spinner("Synchronizing with Market..."):
+            # Fetch Close prices for the 2-month alpha window
             data = yf.download(portfolio, period="2mo")['Close']
             st.session_state.portfolio_data = data
-            st.session_state.last_sync = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.toast("Alpha Data Synced!", icon="🚀")
-    except Exception as e:
-        st.sidebar.error("Yahoo Finance still throttling. Wait 15 mins.")
+            st.session_state.last_sync = datetime.now().strftime("%H:%M:%S")
+            st.toast("Terminal Synced!", icon="🚀")
+    except Exception:
+        st.sidebar.error("Yahoo Limit Active. Cooling down...")
 
 st.sidebar.write(f"**Last Sync:** {st.session_state.last_sync}")
 st.sidebar.divider()
 
-# --- 3. ALPHA GUARDIAN DASHBOARD ---
+# --- 3. ALPHA GUARDIAN & YIELD ENGINE ---
 if st.session_state.portfolio_data is not None:
     data = st.session_state.portfolio_data
     
-    # Portfolio Analysis logic
     st.header("🛡️ Portfolio Alpha Guardian")
-    col_a, col_b = st.columns(2)
+    col1, col2 = st.columns(2)
     
-    with col_a:
-        # Diversification Math
+    with col1:
+        # Correlation-based Diversification Score
         rets = data.pct_change().dropna()
         avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
         st.write(f"## Diversification Score: {round((1-avg_corr)*100, 1)}%")
-        st.caption(f"Sync Timestamp: {st.session_state.last_sync}")
+        st.caption(f"Based on data from {st.session_state.last_sync}")
         
-    with col_b:
-        # Sector Weighting
+    with col2:
+        # Strategic Sector View
         sectors = {"Energy": 5, "Materials": 2, "Industrials": 1}
         fig = px.pie(values=list(sectors.values()), names=list(sectors.keys()), hole=.4)
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- 4. YIELD & HARVEST ENGINE ---
-    st.sidebar.header("📊 Yield & Harvest Engine")
+    # Yield Engine - uses data from st.session_state
+    st.sidebar.header("📊 Yield Engine")
     selected = st.sidebar.selectbox("Select Asset", portfolio)
-    basis = st.sidebar.number_input(f"Avg Cost for {selected}", value=25.0)
-    
-    # Static logic to avoid extra API calls
-    price = data[selected].iloc[-1]
-    st.sidebar.metric(f"Current {selected}", f"${price:.2f}")
+    cost = st.sidebar.number_input(f"Avg Cost for {selected}", value=25.0)
+    current_p = data[selected].iloc[-1]
+    st.sidebar.metric(f"Price: {selected}", f"${current_p:.2f}")
 else:
-    # Landing state when rate limited
-    st.info("💡 Terminal is in cool-down. Click 'Sync Terminal' to attempt data fetch.")
+    # Landing state during rate-limiting
+    st.info("💡 Terminal is in cool-down. Please wait 15 minutes before hitting 'Sync Terminal'.")
