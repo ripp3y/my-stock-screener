@@ -22,7 +22,7 @@ portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 def execute_stealth_sync():
     try:
         # Mimic human behavior with randomized jitter
-        time.sleep(random.uniform(3.5, 6.5))
+        time.sleep(random.uniform(4.0, 7.5))
         
         # Efficient market pull
         fresh_data = yf.download(portfolio, period="3mo", progress=False)['Close']
