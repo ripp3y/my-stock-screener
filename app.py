@@ -21,10 +21,10 @@ portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 # --- 2. STEALTH SYNC PROTOCOL ---
 def execute_stealth_sync():
     try:
-        # Randomized jitter to evade automated bot detection
-        time.sleep(random.uniform(11.0, 16.0))
+        # Mimic human behavior with randomized jitter to evade 429
+        time.sleep(random.uniform(12.0, 18.0))
         
-        # Efficient market data pull
+        # Efficient market pull
         fresh_data = yf.download(portfolio, period="3mo", progress=False)['Close']
         
         if not fresh_data.empty:
@@ -32,7 +32,7 @@ def execute_stealth_sync():
             st.session_state.sync_log = datetime.now().strftime("%H:%M:%S")
             st.toast("Alpha Intelligence Synced", icon="🥷")
     except Exception:
-        # Retention logic: fail silently and keep cached dashboard active
+        # Retention logic: fail silently and keep dashboard active
         st.sidebar.error("Stealth lockout active. Stand by.")
 
 # --- 3. COMMAND CENTER ---
@@ -51,7 +51,7 @@ if st.session_state.market_data is not None:
     
     col_a, col_b = st.columns(2)
     with col_a:
-        # Tracking for the 70.3% diversification goal
+        # Metric tracking for the 70.3% goal
         rets = df.pct_change().dropna()
         avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
         st.metric("Diversification Score", f"{round((1-avg_corr)*100, 1)}%")
@@ -72,5 +72,5 @@ if st.session_state.market_data is not None:
     yoc = ((current / basis) - 1) * 100
     st.sidebar.metric(f"Current {asset}", f"${current:.2f}", f"{yoc:.1f}% YoC")
 else:
-    # Status feedback during API throttle
+    # Feedback during mandatory cool-down
     st.info("💡 Terminal is in stealth cool-down. Stand by for the 15-minute API reset.")
