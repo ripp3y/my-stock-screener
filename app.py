@@ -1,7 +1,18 @@
-import streamlit as st  # <--- CRITICAL: This defines 'st'
+import streamlit as st  # <--- CRITICAL FIX: Defines 'st'
 import pandas as pd
 import yfinance as yf
-# ... the rest of your terminal logic
+
+# --- TAB 2: PROFIT HARVESTER ---
+with st.expander("💰 Profit Harvest Calculator", expanded=True):
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Your target harvest is recorded at $2045.50
+        target_cash = st.number_input("Target Harvest ($)", value=2045.50)
+        # Ticker selection for your EQNR/PBR holdings
+        asset = st.selectbox("Source Asset", ["EQNR", "PBR", "CENX"])
+        
+    # Logic for calculation goes here...
 # --- TAB 2: PROFIT HARVESTER ---
 with st.expander("💰 Profit Harvest Calculator", expanded=True):
     col1, col2, col3 = st.columns(3)
