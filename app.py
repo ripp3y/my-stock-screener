@@ -1,3 +1,6 @@
+import streamlit as st
+import pandas as pd
+# ... other imports
 # --- TAB 2: PROFIT HARVESTER ---
 with st.expander("💰 Profit Harvest Calculator", expanded=True):
     col1, col2, col3 = st.columns(3)
