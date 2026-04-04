@@ -8,23 +8,16 @@ import time
 import random
 
 # --- 1. CORE ARCHITECTURE ---
+# Defining 'st' first prevents the NameError from image_30ad2d
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
-# --- 1. CORE ARCHITECTURE ---
-st.set_page_config(page_title="Strategic US Terminal", layout="wide")
-# ... rest of the code provided previously
-
-# --- 1. CORE ARCHITECTURE ---
-# Defining 'st' at the very top prevents the NameError identified in image_30ad2d
-st.set_page_config(page_title="Strategic US Terminal", layout="wide")
-
-# Persistent State Engine: Retains data during Yahoo Finance 429 lockouts
+# Persistent State Engine: Holds your data during API lockouts
 if 'market_data' not in st.session_state:
     st.session_state.market_data = None
 if 'sync_log' not in st.session_state:
     st.session_state.sync_log = "Never"
 
-# Your high-conviction portfolio
+# Your high-conviction portfolio tickers
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 
 # --- 2. STEALTH SYNC PROTOCOL ---
@@ -40,9 +33,11 @@ def execute_stealth_sync():
             st.session_state.market_data = fresh_data
             st.session_state.sync_log = datetime.now().strftime("%H:%M:%S")
             st.toast("Alpha Intelligence Synced", icon="🥷")
+        else:
+            st.sidebar.warning("No data received. 429 Lockout may be active.")
     except Exception as e:
         # Retention logic: keeps cached dashboard active during API throttle
-        st.sidebar.error(f"Stealth lockout active. Stand by.")
+        st.sidebar.error("Stealth lockout active. Stand by.")
 
 # --- 3. COMMAND CENTER (SIDEBAR) ---
 st.sidebar.header("🕹️ Command Center")
@@ -60,7 +55,7 @@ with st.sidebar.expander("💰 Profit Harvest Tool", expanded=True):
     asset_to_trim = st.selectbox("Select Asset", portfolio, index=2, key="hv_asset") # Default to EQNR
     
     if st.session_state.market_data is not None:
-        current_price = st.session_state.market_data[asset_to_trim].iloc[-1]
+        current_price = st.session_data.market_data[asset_to_trim].iloc[-1]
         shares_to_sell = target_cash / current_price
         st.metric(f"Shares to Sell ({asset_to_trim})", f"{shares_to_sell:.2f}")
         
@@ -69,6 +64,8 @@ with st.sidebar.expander("💰 Profit Harvest Tool", expanded=True):
             basis = 25.00 # Estimated basis
             yoc = ((current_price / basis) - 1) * 100
             st.write(f"**Current YoC:** {yoc:.1f}%")
+    else:
+        st.caption("Awaiting sync for live harvest calculation...")
 
 # --- 5. ALPHA GUARDIAN DASHBOARD ---
 st.title("🛡️ Alpha Guardian Terminal")
@@ -99,7 +96,7 @@ if st.session_state.market_data is not None:
 
     # --- 6. DIVIDEND ALPHA TRACKER ---
     st.divider()
-    st.subheader("📈 Dividend Alpha stream")
+    st.subheader("📈 Dividend Alpha Stream")
     div_col1, div_col2 = st.columns([1, 2])
     
     with div_col1:
@@ -109,10 +106,9 @@ if st.session_state.market_data is not None:
         st.info("EQNR: Dividend Harvest Target Active")
     
     with div_col2:
-        # Placeholder for yield visualization
         st.caption("Dividend contribution visualizer awaiting next sync...")
 
 else:
     # Error state handling for Yahoo Finance 429 Lockout
-    st.warning("⚠️ Terminal is in Stealth Cool-down. Market data is currently throttled by Yahoo Finance.")
-    st.info("💡 Pro Tip: Wait 15 minutes before hitting 'Stealth Sync' again to clear the 429 rate limit.")
+    st.warning("⚠️ Terminal is in Stealth Cool-down. Market data is currently throttled.")
+    st.info("💡 Next Steps: Wait 15 minutes before hitting 'Stealth Sync' again to reset API quota.")
