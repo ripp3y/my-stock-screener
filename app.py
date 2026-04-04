@@ -1,18 +1,16 @@
-import streamlit as st  # <--- CRITICAL FIX: Defines 'st'
-import pandas as pd
-import yfinance as yf
+import streamlit as st
 
 # --- TAB 2: PROFIT HARVESTER ---
 with st.expander("💰 Profit Harvest Calculator", expanded=True):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        # Your target harvest is recorded at $2045.50
-        target_cash = st.number_input("Target Harvest ($)", value=2045.50)
-        # Ticker selection for your EQNR/PBR holdings
-        asset = st.selectbox("Source Asset", ["EQNR", "PBR", "CENX"])
+        # Adding unique 'key' parameters prevents the Duplicate ID error
+        target_cash = st.number_input("Target Harvest ($)", value=2045.50, key="harvest_target_input")
+        asset = st.selectbox("Source Asset", ["EQNR", "PBR", "CENX"], key="harvest_asset_select")
         
-    # Logic for calculation goes here...
+    # Example of a second calculator that would cause a conflict without unique keys:
+    # secondary_cash = st.number_input("Target Harvest ($)", value=1000.0, key="secondary_target_input")
 # --- TAB 2: PROFIT HARVESTER ---
 with st.expander("💰 Profit Harvest Calculator", expanded=True):
     col1, col2, col3 = st.columns(3)
