@@ -22,7 +22,7 @@ portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 def execute_stealth_sync():
     try:
         # Randomized jitter to evade automated bot detection
-        time.sleep(random.uniform(9.0, 14.0))
+        time.sleep(random.uniform(10.0, 15.0))
         
         # Efficient market data pull
         fresh_data = yf.download(portfolio, period="3mo", progress=False)['Close']
