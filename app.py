@@ -55,7 +55,7 @@ with st.sidebar.expander("💰 Profit Harvest Tool", expanded=True):
     asset_to_trim = st.selectbox("Select Asset", portfolio, index=2, key="hv_asset") # Default to EQNR
     
     if st.session_state.market_data is not None:
-        current_price = st.session_data.market_data[asset_to_trim].iloc[-1]
+        current_price = st.session_state.market_data[asset_to_trim].iloc[-1]
         shares_to_sell = target_cash / current_price
         st.metric(f"Shares to Sell ({asset_to_trim})", f"{shares_to_sell:.2f}")
         
