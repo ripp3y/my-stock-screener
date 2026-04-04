@@ -22,7 +22,7 @@ portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 def execute_stealth_sync():
     try:
         # Mimic human behavior with randomized jitter to evade 429
-        time.sleep(random.uniform(5.5, 9.5))
+        time.sleep(random.uniform(6.0, 10.0))
         
         # Efficient market pull
         fresh_data = yf.download(portfolio, period="3mo", progress=False)['Close']
@@ -51,7 +51,7 @@ if st.session_state.data is not None:
     
     col_a, col_b = st.columns(2)
     with col_a:
-        # Metric tracking for the 70.3% diversification goal
+        # Metric tracking for the 70.3% goal
         rets = df.pct_change().dropna()
         avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
         st.metric("Diversification Score", f"{round((1-avg_corr)*100, 1)}%")
