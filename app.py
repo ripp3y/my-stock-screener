@@ -92,7 +92,7 @@ if st.session_state.market_data is not None:
         sectors = {"Energy": 62.5, "Materials": 25.0, "Industrials": 12.5}
         fig = px.pie(values=list(sectors.values()), names=list(sectors.keys()), hole=.4,
                      color_discrete_sequence=px.colors.qualitative.Plotly)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, on_select="ignore")
 
     # --- 6. DIVIDEND ALPHA TRACKER ---
     st.divider()
