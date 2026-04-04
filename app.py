@@ -1,6 +1,7 @@
-import streamlit as st
+import streamlit as st  # <--- CRITICAL: This defines 'st'
 import pandas as pd
-# ... other imports
+import yfinance as yf
+# ... the rest of your terminal logic
 # --- TAB 2: PROFIT HARVESTER ---
 with st.expander("💰 Profit Harvest Calculator", expanded=True):
     col1, col2, col3 = st.columns(3)
