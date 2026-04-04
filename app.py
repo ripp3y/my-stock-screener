@@ -11,28 +11,28 @@ import random
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
 # Persistent State Engine
-if 'data' not in st.session_state:
-    st.session_state.data = None
-if 'sync_time' not in st.session_state:
-    st.session_state.sync_time = "Never"
+if 'market_data' not in st.session_state:
+    st.session_state.market_data = None
+if 'sync_log' not in st.session_state:
+    st.session_state.sync_log = "Never"
 
 portfolio = ["PBR", "CENX", "EQNR", "CNQ", "CF", "XOM", "CVX", "GEV"]
 
 # --- 2. STEALTH SYNC PROTOCOL ---
 def execute_stealth_sync():
     try:
-        # Randomized jitter to evade automated bot detection
-        time.sleep(random.uniform(7.0, 11.0))
+        # Mimic human interaction with randomized jitter
+        time.sleep(random.uniform(7.5, 12.0))
         
-        # Efficient market data pull
+        # Efficient market pull
         fresh_data = yf.download(portfolio, period="3mo", progress=False)['Close']
         
         if not fresh_data.empty:
-            st.session_state.data = fresh_data
-            st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
+            st.session_state.market_data = fresh_data
+            st.session_state.sync_log = datetime.now().strftime("%H:%M:%S")
             st.toast("Alpha Intelligence Synced", icon="🥷")
     except Exception:
-        # Retention logic: fail silently and keep cached dashboard active
+        # Retention logic: fail silently and keep dashboard active
         st.sidebar.error("Stealth lockout active. Stand by.")
 
 # --- 3. COMMAND CENTER ---
@@ -40,18 +40,18 @@ st.sidebar.header("🕹️ Command Center")
 if st.sidebar.button("🔄 Stealth Sync"):
     execute_stealth_sync()
 
-st.sidebar.write(f"**Status:** {'Engaged' if st.session_state.data is not None else 'Cool-down'}")
-st.sidebar.write(f"**Last Sync:** {st.session_state.sync_time}")
+st.sidebar.write(f"**Status:** {'Engaged' if st.session_state.market_data is not None else 'Cool-down'}")
+st.sidebar.write(f"**Last Sync:** {st.session_state.sync_log}")
 st.sidebar.divider()
 
 # --- 4. ALPHA GUARDIAN DASHBOARD ---
-if st.session_state.data is not None:
-    df = st.session_state.data
+if st.session_state.market_data is not None:
+    df = st.session_state.market_data
     st.header("🛡️ Portfolio Alpha Guardian")
     
     col_a, col_b = st.columns(2)
     with col_a:
-        # Tracking for the 70.3% diversification goal
+        # Metric tracking for the 70.3% goal
         rets = df.pct_change().dropna()
         avg_corr = rets.corr().where(np.triu(np.ones(len(portfolio)), k=1).astype(bool)).stack().mean()
         st.metric("Diversification Score", f"{round((1-avg_corr)*100, 1)}%")
@@ -72,5 +72,5 @@ if st.session_state.data is not None:
     yoc = ((current / basis) - 1) * 100
     st.sidebar.metric(f"Current {asset}", f"${current:.2f}", f"{yoc:.1f}% YoC")
 else:
-    # Status feedback during API throttle
-    st.info("💡 Terminal is in stealth cool-down. Stand by for the 15-minute reset.")
+    # Feedback during mandatory cool-down
+    st.info("💡 Terminal is in stealth cool-down. Stand by for the 15-minute API reset.")
