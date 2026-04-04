@@ -1,4 +1,6 @@
-import streamlit as st
+[server]
+# This prevents the app from restarting on every minor file 'touch'
+runOnSave = falseimport streamlit as st
 
 # --- TAB 2: PROFIT HARVESTER ---
 with st.expander("💰 Profit Harvest Calculator", expanded=True):
