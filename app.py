@@ -26,7 +26,7 @@ def home_page():
     # 1. Top Metrics Dashboard
     col1, col2, col3 = st.columns(3)
     with col1:
-        # Ticker confirmed active at $18.81 today
+        # PBR-A is very much alive, trading at ~$18.91 with a confirmed Apr 24 ex-div.
         st.metric("PBR.A Yield on Cost", "596.1%", delta="Anchor Safe", delta_color="normal")
     with col2:
         st.metric("Portfolio Diversification", "68.9%", delta="Target: 70.3%")
@@ -41,13 +41,14 @@ def home_page():
     
     sectors = {"Energy": "XLE", "Industrials": "XLI", "Materials": "XLB", "Tech": "XLK"}
     try:
-        # Pulling 6 months to see the long-term 100% gain trend
+        # Pulling 6 months to see the rotation trends
         comp_data = yf.download(list(sectors.values()) + ["SPY"], period="6mo", interval="1d")['Close']
         rs_df = pd.DataFrame()
         for name, ticker in sectors.items():
             rs_df[name] = comp_data[ticker] / comp_data["SPY"]
         
-        st.line_chart(rs_df)
+        # Updated to use 'width' as 'use_container_width' is deprecated in 2026
+        st.line_chart(rs_df, width="stretch")
         st.info("💡 **Alpha Note:** Energy is flattening. Watch Industrials for the next 100% leg up.")
     except:
         st.error("Market data sync delayed. Check connection.")
@@ -67,7 +68,7 @@ def home_page():
 def alpha_guardian():
     st.title("🛡️ Alpha Guardian Tracker")
     
-    # FIX: Ticker changed to 'PBR-A' (Dash) to fix the 'Delisted' glitch in image_c4378f
+    # FIX: Ticker changed to 'PBR-A' (Dash) to fix the 'Delisted' glitch in your logs
     tickers = ["EQNR", "PBR-A", "CENX", "CF", "GEV"]
     
     with st.status("Syncing Live Market Data...", expanded=False):
@@ -76,7 +77,7 @@ def alpha_guardian():
     # Momentum Chart
     fig = px.line(data, title="Strategy Momentum (Last 5 Days)")
     fig.update_layout(template="plotly_dark", legend_title="Holdings")
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width="stretch")
 
     # 100% Club Benchmarking
     st.subheader("🚀 The 100% Club YoY Leaders")
@@ -96,7 +97,7 @@ def research_hub():
         
         with c1:
             hist = t_obj.history(period="1mo")
-            st.line_chart(hist['Close'])
+            st.line_chart(hist['Close'], width="stretch")
         
         with c2:
             st.write(f"**{ticker} Key Stats**")
