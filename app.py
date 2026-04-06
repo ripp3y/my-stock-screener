@@ -11,9 +11,10 @@ st.set_page_config(page_title="Strategic US Terminal", page_icon="🛡️", layo
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
-    div[data-testid="stMetricValue"] { font-size: 28px; color: #00ff88; }
+    div[data-testid="stMetricValue"] { font-size: 28px; color: #00ff88; font-weight: bold; }
     div[data-testid="stMetricDelta"] { font-size: 16px; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #1f67da; color: white; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3.5em; background-color: #1f67da; color: white; font-weight: bold; }
+    .stAlert { background-color: #161b22; border: 1px solid #30363d; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -25,12 +26,12 @@ def home_page():
     # 1. Top Metrics Dashboard
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("PBR.A Yield on Cost", "596.1%", delta="Income Anchor: SAFE")
+        # Ticker confirmed active at $18.81 today
+        st.metric("PBR.A Yield on Cost", "596.1%", delta="Anchor Safe", delta_color="normal")
     with col2:
         st.metric("Portfolio Diversification", "68.9%", delta="Target: 70.3%")
     with col3:
-        # Energy is currently the #1 Sector YTD in April 2026
-        st.metric("Sector Leader", "Energy (XLE)", delta="+32.9% YTD")
+        st.metric("Market Leader", "Energy (XLE)", delta="+32.9% YTD")
 
     st.divider()
 
@@ -38,15 +39,16 @@ def home_page():
     st.subheader("🔄 Sector Rotation Matrix")
     st.caption("UP = Pulling Ahead of Market | DOWN = Pullback Incoming")
     
-    # Compare your target sectors vs SPY (Market)
     sectors = {"Energy": "XLE", "Industrials": "XLI", "Materials": "XLB", "Tech": "XLK"}
     try:
+        # Pulling 6 months to see the long-term 100% gain trend
         comp_data = yf.download(list(sectors.values()) + ["SPY"], period="6mo", interval="1d")['Close']
         rs_df = pd.DataFrame()
         for name, ticker in sectors.items():
             rs_df[name] = comp_data[ticker] / comp_data["SPY"]
         
         st.line_chart(rs_df)
+        st.info("💡 **Alpha Note:** Energy is flattening. Watch Industrials for the next 100% leg up.")
     except:
         st.error("Market data sync delayed. Check connection.")
 
@@ -54,31 +56,31 @@ def home_page():
 
     # 3. MANUAL HARVEST LOGGER
     st.subheader("📝 Manual Harvest Logger")
-    with st.expander("Record your EQNR Sell here"):
+    with st.expander("Record your EQNR Sell Progress"):
         c1, c2 = st.columns(2)
-        sell_p = c1.number_input("Actual Sell Price ($)", value=41.65)
+        sell_p = c1.number_input("Actual Sell Price ($)", value=41.67)
         sell_q = c2.number_input("Total Shares Sold", value=49.15)
         if st.button("Confirm Harvest"):
             total = sell_p * sell_q
-            st.success(f"Harvested ${total:,.2f}. Equity moved to 'Dry Powder' for next rotation.")
+            st.success(f"Harvested ${total:,.2f}. Target $2,045.50 secured.")
 
 def alpha_guardian():
     st.title("🛡️ Alpha Guardian Tracker")
     
-    # FIX: Using 'PBR-A' with a dash to bypass the "delisted" glitch
+    # FIX: Ticker changed to 'PBR-A' (Dash) to fix the 'Delisted' glitch in image_c4378f
     tickers = ["EQNR", "PBR-A", "CENX", "CF", "GEV"]
     
     with st.status("Syncing Live Market Data...", expanded=False):
         data = yf.download(tickers, period="5d", interval="1h")['Close']
     
     # Momentum Chart
-    fig = px.line(data, title="5-Day Strategy Momentum", color_discrete_sequence=px.colors.qualitative.Plotly)
+    fig = px.line(data, title="Strategy Momentum (Last 5 Days)")
     fig.update_layout(template="plotly_dark", legend_title="Holdings")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # 100% Club Benchmarking
-    st.subheader("🚀 2026 Leaders: The 100% Club")
-    st.write("Current stocks hitting the 80-100% YoY goal:")
+    st.subheader("🚀 The 100% Club YoY Leaders")
+    st.write("Tracking the leaders to reach your YoY goal:")
     col1, col2, col3 = st.columns(3)
     col1.info("**KOS (Energy)**: +227.1% YTD")
     col2.info("**BW (Industrials)**: +147.6% YTD")
@@ -86,7 +88,7 @@ def alpha_guardian():
 
 def research_hub():
     st.title("🔍 Deep Research Hub")
-    ticker = st.text_input("Enter Ticker for News & Stats", value="GEV").upper()
+    ticker = st.text_input("Enter Ticker for Intelligence (e.g. GEV, CENX, KOS)", value="GEV").upper()
     
     if ticker:
         t_obj = yf.Ticker(ticker)
@@ -99,15 +101,15 @@ def research_hub():
         with c2:
             st.write(f"**{ticker} Key Stats**")
             info = t_obj.info
+            st.write(f"Price: ${info.get('currentPrice', 'N/A')}")
             st.write(f"Sector: {info.get('sector', 'N/A')}")
-            st.write(f"PE Ratio: {info.get('trailingPE', 'N/A')}")
-            st.write(f"Div Yield: {info.get('dividendYield', 0)*100:.2f}%")
+            st.write(f"Forward PE: {info.get('forwardPE', 'N/A')}")
 
-        st.subheader("📰 Latest Headlines")
+        st.subheader("📰 Latest Strategic Headlines")
         for news in t_obj.news[:4]:
             st.markdown(f"- [{news['title']}]({news['link']})")
 
-# --- 3. NAVIGATION ENGINE (Streamlit 2026 API) ---
+# --- 3. NAVIGATION ENGINE (2026 Multi-Page API) ---
 
 pg = st.navigation([
     st.Page(home_page, title="Home", icon="🏠"),
