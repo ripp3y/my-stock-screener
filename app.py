@@ -5,6 +5,7 @@ def alpha_scout():
     st.subheader("⚡ The Power Wall")
    power_tickers = ["GEV", "BW", "PBR-A", "EQNR"] # Swapped CAT/FLR for your core holdings
     p_data = yf.download(power_tickers, period="5d")['Close'].iloc[-1]
+
     
     p1, p2, p3, p4 = st.columns(4)
     p1.metric("GEV", f"${p_data['GEV']:.2f}", "Target: $1,735")
