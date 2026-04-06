@@ -3,7 +3,7 @@ def alpha_scout():
     
     # 1. THE POWER WALL (AI Infrastructure Watchlist)
     st.subheader("⚡ The Power Wall")
-    power_tickers = ["GEV", "BW", "CAT", "FLR"]
+   power_tickers = ["GEV", "BW", "PBR-A", "EQNR"] # Swapped CAT/FLR for your core holdings
     p_data = yf.download(power_tickers, period="5d")['Close'].iloc[-1]
     
     p1, p2, p3, p4 = st.columns(4)
