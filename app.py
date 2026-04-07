@@ -1,24 +1,26 @@
 def trade_scout():
-    st.title("🔭 New Trade Scout")
+    st.title("🔭 New Trade Scout: AI Infrastructure")
     
-    # The 2026 "Power Trio"
-    scout_tickers = ["BE", "MTZ", "CCJ"]
+    # The 2026 High-Conviction List
+    scout_list = ["BE", "MTZ", "CCJ"]
     
-    for ticker in scout_tickers:
+    for ticker in scout_list:
         t_obj = yf.Ticker(ticker)
-        # Getting today's volume vs 10-day average
+        # Check volume over the last 10 trading days
         hist = t_obj.history(period="10d")
         avg_vol = hist['Volume'].mean()
         curr_vol = hist['Volume'].iloc[-1]
+        vol_ratio = curr_vol / avg_vol
         
-        col1, col2 = st.columns([1, 3])
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            if vol_ratio > 2.0:
+                st.success(f"🔥 {ticker} VOLUME BREAKOUT!")
+            elif vol_ratio > 1.5:
+                st.warning(f"⚡ {ticker} Accumulating...")
+            else:
+                st.info(f"🔎 {ticker} Monitoring")
         
-        # ALERT: If volume is 2x average, show a "BUY SIGNAL"
-        if curr_vol > (avg_vol * 2):
-            col1.success(f"🔥 {ticker} BREAKOUT")
-        else:
-            col1.info(f"🔎 {ticker} Tracking")
-            
         with col2:
-            st.write(f"**{ticker}** | Volume: {curr_vol:,.00f} vs Avg: {avg_vol:,.00f}")
-            st.progress(min(curr_vol/avg_vol/3, 1.0)) # Visual bar of volume intensity
+            st.write(f"**Current Price:** ${hist['Close'].iloc[-1]:.2f}")
+            st.caption(f"Volume Ratio: {vol_ratio:.2f}x (Current vs 10-day Avg)")
