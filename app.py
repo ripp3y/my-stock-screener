@@ -5,58 +5,57 @@ import yfinance as yf
 # --- 1. SETTINGS ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
-# Function to calculate RSI (Relative Strength Index)
-def get_rsi(series, period=14):
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+# Technical Logic: RSI & Volume Spikes
+def get_technical_signals(data):
+    # RSI Calculation
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    return 100 - (100 / (1+rs))
+    rsi = 100 - (100 / (1+rs))
+    
+    # Volume Spike Detection
+    avg_vol = data['Volume'].rolling(window=20).mean()
+    vol_spike = data['Volume'] > (avg_vol * 1.5)
+    
+    return rsi.iloc[-1], vol_spike.iloc[-1]
 
 # --- 2. THE ALPHA SCOUT FUNCTION ---
 def alpha_scout():
-    st.title("🔭 Alpha Scout: The 400% Expansion Team")
+    st.title("🔭 Alpha Scout: Institutional Volume Tracker")
     
-    # Your full 2026 Diversified Portfolio
+    # The 2026 Team
     team_tickers = ["GEV", "BW", "PBR-A", "EQNR", "TPL", "SNDK", "MRNA"]
     
     try:
-        # Fetching 6mo data for accurate RSI
-        data = yf.download(team_tickers, period="6mo")['Close']
-        latest_prices = data.iloc[-1]
+        # Fetching 6mo data for Volume & RSI
+        data = yf.download(team_tickers, period="6mo", group_by='ticker')
         
-        # Grid Layout for scannability
         cols = st.columns(len(team_tickers))
         
         for i, ticker in enumerate(team_tickers):
-            price = latest_prices[ticker]
-            rsi_val = get_rsi(data[ticker]).iloc[-1]
-            
-            # 2026 Logic: Overbought > 70, Oversold < 30
-            status = "Neutral"
-            icon = ""
-            if rsi_val > 70: 
-                status = "⚠️ Overbought"
-            elif rsi_val < 30: 
-                status = "✅ Oversold"
+            ticker_data = data[ticker]
+            price = ticker_data['Close'].iloc[-1]
+            rsi, spike = get_technical_signals(ticker_data)
             
             with cols[i]:
                 st.metric(ticker, f"${price:.2f}")
-                st.caption(f"RSI: {rsi_val:.1f}")
-                if status != "Neutral":
-                    st.write(f"**{status}**")
+                
+                # Signal 1: RSI Status
+                if rsi > 70: st.error(f"RSI: {rsi:.1f} (Overbought)")
+                elif rsi < 30: st.success(f"RSI: {rsi:.1f} (Oversold)")
+                else: st.caption(f"RSI: {rsi:.1f}")
+                
+                # Signal 2: Institutional Volume Spike
+                if spike:
+                    st.warning("🔥 VOLUME SPIKE")
+                    st.write("Institutional Buying Detected")
                 else:
-                    st.write(status)
+                    st.write("Normal Volume")
 
         st.divider()
-        
-        # Automated Strategy Panel
-        st.subheader("📊 Strategic Rotation for Wednesday")
-        st.info(f"""
-        * **EQNR Harvest**: Current Price **${latest_prices['EQNR']:.2f}** is near targets. Lock in gains.
-        * **TPL Opportunity**: RSI is **{get_rsi(data['TPL']).iloc[-1]:.1f}** (Oversold). Institutional entry signal.
-        * **SNDK Momentum**: Price **${latest_prices['SNDK']:.2f}** remains the 2026 leader.
-        """)
+        st.subheader("📝 Monday Night Strategy")
+        st.info("Watch for 'Oversold' RSI + 'Volume Spike' on the same day. That is the 400% moonshot entry signal.")
         
     except Exception as e:
         st.error(f"Sync Error: {e}")
