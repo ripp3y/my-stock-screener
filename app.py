@@ -5,22 +5,25 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # --- 1. CONFIG ---
-st.set_page_config(page_title="Alpha Scout: Institutional Terminal", layout="wide")
+st.set_page_config(page_title="Alpha Scout: Tactical Terminal", layout="wide")
 
 def get_technical_signals(data):
-    # RSI & 9-Day EMA logic
+    # RSI Calculation
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
+    
+    # 9-Day EMA (The Boom Floor)
     ema_9 = data['Close'].ewm(span=9, adjust=False).mean()
     
+    # % Cushion Metric
     current_price = data['Close'].iloc[-1]
     current_ema = ema_9.iloc[-1]
-    pct_from_floor = ((current_price - current_ema) / current_ema) * 100
+    pct_dist = ((current_price - current_ema) / current_ema) * 100
     
-    return rsi.iloc[-1], ema_9, pct_from_floor
+    return rsi.iloc[-1], ema_9, pct_dist
 
 # --- 2. LIVE SCOUT ---
 st.title("🚀 Alpha Scout: Institutional Command Center")
@@ -39,47 +42,44 @@ try:
         
         with cols[i]:
             st.metric(ticker, f"${price:.2f}", f"{pct_dist:+.1f}% Cushion")
-            if pct_dist < 0: st.error("📉 Trend Break")
-            elif rsi > 70: st.warning("🔥 Overbought")
-            else: st.success("🚀 Strong")
+            if pct_dist < 0: st.error("📉 TREND BREAK")
+            elif rsi > 70: st.warning("🔥 BOOMING")
+            else: st.success("🚀 STRONG")
 
     st.divider()
 
-    # --- 3. THE INSTITUTIONAL CHART (SUBPLOTS) ---
-    st.subheader("📊 Institutional Direction & Volume Analysis")
+    # --- 3. DIRECTIONAL ANALYSIS & VOLUME ---
+    st.subheader("📊 Directional Analysis: Price & Institutional Volume")
     selected_ticker = st.selectbox("Select Ticker for Deep Dive", team_tickers)
     
     if selected_ticker:
         df = data[selected_ticker].dropna()
         _, ema_9_series, _ = get_technical_signals(df)
         
-        # Create Subplots: Row 1 is Candles (70%), Row 2 is Volume (30%)
+        # Setup Subplots (70% Candles, 30% Volume)
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                            vertical_spacing=0.03, 
-                            row_heights=[0.7, 0.3])
+                            vertical_spacing=0.03, row_heights=[0.7, 0.3])
 
-        # A. Candlestick Trace
+        # A. Candlesticks
         fig.add_trace(go.Candlestick(
             x=df.index, open=df['Open'], high=df['High'],
             low=df['Low'], close=df['Close'], name="Price"
         ), row=1, col=1)
 
-        # B. 9-Day EMA Overlay (The Floor)
+        # B. 9-Day EMA Floor
         fig.add_trace(go.Scatter(
             x=df.index, y=ema_9_series, 
             line=dict(color='orange', width=2), name="9-Day EMA"
         ), row=1, col=1)
 
-        # C. Volume Bars with Dynamic Coloring
-        vol_colors = ['#26a69a' if close >= open else '#ef5350' 
-                      for open, close in zip(df['Open'], df['Close'])]
-        
+        # C. Volume Bars (Color-coded)
+        vol_colors = ['#26a69a' if c >= o else '#ef5350' for o, c in zip(df['Open'], df['Close'])]
         fig.add_trace(go.Bar(
             x=df.index, y=df['Volume'], 
             marker_color=vol_colors, name="Volume"
         ), row=2, col=1)
 
-        # Layout Tuning
+        # Layout & Formatting
         fig.update_layout(
             template="plotly_dark",
             xaxis_rangeslider_visible=False,
@@ -87,9 +87,12 @@ try:
             showlegend=False,
             margin=dict(t=30, b=10)
         )
-        
-        # Update y-axis titles
         fig.update_yaxes(title_text="Price ($)", row=1, col=1)
         fig.update_yaxes(title_text="Volume", row=2, col=1)
         
-        st.plotly_chart(
+        # Fixed the closing parenthesis here!
+        st.plotly_chart(fig, use_container_width=True)
+
+    # --- 4. HARVEST & GOALS ---
+    st.divider()
+    c1, c2 = st.columns(
