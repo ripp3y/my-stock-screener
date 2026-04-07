@@ -5,7 +5,7 @@ import yfinance as yf
 # --- 1. SETTINGS ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
-# --- 2. THE SCOUT FUNCTION ---
+# --- 2. THE ALPHA SCOUT FUNCTION ---
 def alpha_scout():
     st.title("🚀 Alpha Scout: 100% Club Hunter")
     
