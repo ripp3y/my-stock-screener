@@ -1,27 +1,16 @@
-def alpha_scout():
-    st.title("🔭 Alpha Scout: Hunting the 100% Club")
+def moonshot_scout():
+    # Filter for the 'Power Alley' candidates
+    candidates = ["GEV", "BW", "BE", "MTZ", "CCJ"]
     
-    # Tracking the 'Power Trio' and your current Energy plays
-    scout_list = ["BE", "MTZ", "CCJ", "GEV", "BW", "PBR-A"]
-    
-    for ticker in scout_list:
-        t_obj = yf.Ticker(ticker)
-        hist = t_obj.history(period="10d")
+    for t in candidates:
+        ticker = yf.Ticker(t)
+        hist = ticker.history(period="1y")
         
-        # Calculate Volume Intensity
-        avg_vol = hist['Volume'].mean()
-        curr_vol = hist['Volume'].iloc[-1]
-        vol_ratio = curr_vol / avg_vol
+        # 1. Check for RS Line Breakout (Higher Highs while SPY is lower)
+        # 2. Check for Volume Accumulation (Up days volume > Down days volume)
+        up_vol = hist[hist['Close'] > hist['Open']]['Volume'].mean()
+        dn_vol = hist[hist['Close'] < hist['Open']]['Volume'].mean()
+        vol_intensity = up_vol / dn_vol
         
-        col1, col2 = st.columns([1, 2])
-        
-        # HIT SIGNAL: 2x Volume is the Institutional 'Buy'
-        if vol_ratio > 2.0:
-            col1.success(f"🔥 BREAKOUT: {ticker}")
-        elif vol_ratio > 1.5:
-            col1.warning(f"⚡ ACCUMULATION: {ticker}")
-        else:
-            col1.info(f"🔎 MONITORING: {ticker}")
-            
-        with col2:
-            st.write(f"Price: **${hist['Close'].iloc[-1]:.2f}** | Vol Ratio: **{vol_ratio:.2f}x**")
+        if vol_intensity > 1.5:
+            st.success(f"🚀 {t}: Institutional Accumulation detected!")
