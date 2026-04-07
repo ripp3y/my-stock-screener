@@ -8,17 +8,17 @@ from plotly.subplots import make_subplots
 st.set_page_config(page_title="Alpha Scout: Strategic Terminal", layout="wide")
 
 def get_technical_signals(data):
-    # RSI Calculation
+    # RSI Calculation (Relative Strength Index)
     delta = data['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
     
-    # 9-Day EMA (The Boom Floor)
+    # 9-Day EMA (The "Boom Floor")
     ema_9 = data['Close'].ewm(span=9, adjust=False).mean()
     
-    # % Cushion calculation
+    # % Cushion Metric
     current_price = data['Close'].iloc[-1]
     current_ema = ema_9.iloc[-1]
     pct_dist = ((current_price - current_ema) / current_ema) * 100
@@ -76,12 +76,12 @@ try:
                                      low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
         fig.add_trace(go.Scatter(x=df.index, y=ema_9_s, line=dict(color='orange', width=2), name="9-EMA"), row=1, col=1)
 
-        # B. RSI Subplot (Purple Line)
+        # B. RSI Subplot (The Purple Momentum Line)
         fig.add_trace(go.Scatter(x=df.index, y=rsi_s, line=dict(color='#A020F0', width=2), name="RSI"), row=2, col=1)
         fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
         fig.add_hline(y=30, line_dash="dash", line_color="lime", row=2, col=1)
 
-        # ADDED: Small font labels for the indicators
+        # Labels for the indicators (Small Font)
         fig.add_annotation(xref="paper", yref="paper", x=0.01, y=0.98,
                            text="<span style='font-size:10px; color:orange;'>ORANGE LINE: 9-DAY EMA (EXIT FLOOR)</span>",
                            showarrow=False)
@@ -104,4 +104,13 @@ try:
         shares = st.number_input("EQNR Shares to Sell", value=49)
         val = shares * latest_prices.get('EQNR', 0)
         st.success(f"Wednesday Harvest: ${val:,.2f}")
-        st.progress(min(val/2055.5
+        # Progress bar toward the $2,055 target
+        st.progress(min(val/2055.55, 1.0))
+        
+    with c2:
+        st.subheader("🎯 Strategy Notes")
+        st.write("**TPL Logic:** Ticker is currently in Trend Break. Looking for '🎯 BOTTOM FOUND' alert (RSI cross above 30) to trigger rotation.")
+        st.write("**EQNR Logic:** Currently **BOOMING**. Hold for Wednesday morning profit lock unless Cushion turns negative.")
+
+except Exception as e:
+    st.error(f"Sync Error: {e}")
