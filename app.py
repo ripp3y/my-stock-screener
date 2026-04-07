@@ -1,7 +1,7 @@
 def alpha_scout():
     st.title("🚀 Alpha Scout: 100% Club Hunter")
     
-    # FIXED: Exactly 4 spaces of indentation and changed to 'PBR-A'
+    # FIXED: Uniform 4-space indentation and stable 'PBR-A' ticker
     power_tickers = ["GEV", "BW", "PBR-A", "EQNR"]
     
     try:
@@ -17,11 +17,11 @@ def alpha_scout():
 
     st.divider()
 
-    # 2. Breakout Scanner (C)
+    # 2. Breakout Scanner (Clear 'width' parameter used)
     st.subheader("🛡️ Breakout & Pullback Foreseer")
     scan_ticker = st.text_input("Enter Ticker to Scan", value="PBR-A").upper()
     
     if scan_ticker:
         t_obj = yf.Ticker(scan_ticker)
         hist = t_obj.history(period="1mo")
-        st.line_chart(hist['Close'], width='stretch')
+        st.line_chart(hist['Close'], width=None)
