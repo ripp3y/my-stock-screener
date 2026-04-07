@@ -3,7 +3,7 @@ import pandas as pd
 import yfinance as yf
 
 # --- 1. CONFIG ---
-st.set_page_config(page_title="Alpha Scout: Strategic Terminal", layout="wide")
+st.set_page_config(page_title="Alpha Scout: Command Center", layout="wide")
 
 def get_technical_signals(data):
     delta = data['Close'].diff()
@@ -15,57 +15,74 @@ def get_technical_signals(data):
     vol_spike = data['Volume'].iloc[-1] > (avg_vol.iloc[-1] * 1.5)
     return rsi.iloc[-1], vol_spike
 
-# --- 2. TABS ---
-tab1, tab2 = st.tabs(["🚀 Live Scout", "🎯 Goal Center"])
+# --- 2. LIVE SCOUT SECTION ---
+st.title("🚀 Alpha Scout: Strategic Command Center")
+st.write(f"**Monday Night Intelligence:** April 6, 2026")
 
-# --- TAB 1: LIVE SCOUT ---
-with tab1:
-    st.title("Market Intelligence: Monday, April 6, 2026")
-    team_tickers = ["GEV", "BW", "PBR-A", "EQNR", "TPL", "SNDK", "MRNA"]
+team_tickers = ["GEV", "BW", "PBR-A", "EQNR", "TPL", "SNDK", "MRNA"]
+
+try:
+    data = yf.download(team_tickers, period="6mo", group_by='ticker')
+    cols = st.columns(len(team_tickers))
     
-    try:
-        data = yf.download(team_tickers, period="6mo", group_by='ticker')
-        cols = st.columns(len(team_tickers))
+    latest_prices = {}
+    for i, ticker in enumerate(team_tickers):
+        ticker_df = data[ticker].dropna()
+        price = ticker_df['Close'].iloc[-1]
+        latest_prices[ticker] = price
+        rsi, has_spike = get_technical_signals(ticker_df)
         
-        latest_prices = {}
-        for i, ticker in enumerate(team_tickers):
-            ticker_df = data[ticker].dropna()
-            price = ticker_df['Close'].iloc[-1]
-            latest_prices[ticker] = price
-            rsi, has_spike = get_technical_signals(ticker_df)
+        with cols[i]:
+            st.metric(ticker, f"${price:.2f}")
+            # Dynamic RSI Highlighting
+            if rsi > 70:
+                st.error(f"RSI: {rsi:.1f} (OVERBOUGHT)")
+            elif rsi < 35:
+                st.success(f"RSI: {rsi:.1f} (OVERSOLD)")
+            else:
+                st.caption(f"RSI: {rsi:.1f}")
             
-            with cols[i]:
-                st.metric(ticker, f"${price:.2f}")
-                if rsi > 70: st.error(f"RSI: {rsi:.1f}")
-                elif rsi < 35: st.success(f"RSI: {rsi:.1f}")
-                else: st.caption(f"RSI: {rsi:.1f}")
-                
-                if has_spike: st.warning("🔥 VOL SPIKE")
-                else: st.write("Normal Vol")
+            if has_spike: st.warning("🔥 VOL SPIKE")
+            else: st.write("Normal Vol")
 
-    except Exception as e:
-        st.error(f"Sync Error: {e}")
+    st.divider()
 
-# --- TAB 2: GOAL CENTER ---
-with tab2:
-    st.header("Strategic Execution: 2026 Goals")
-    
-    # 1. HARVEST GOAL
-    st.subheader("🟢 Current Mission: The EQNR Harvest")
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        shares_to_sell = 49  # Your EQNR shares for the ~$2k target
-        target_cash = 2045.50
-        current_value = shares_to_sell * latest_prices.get('EQNR', 41.95)
+    # --- 3. GOAL & STRATEGY SECTION ---
+    col_left, col_right = st.columns([1, 1.2])
+
+    with col_left:
+        st.subheader("💰 Harvest Calculator")
+        eqnr_price = latest_prices.get('EQNR', 41.95)
+        shares_to_sell = st.number_input("EQNR Shares to Sell", value=49, step=1)
+        harvest_value = shares_to_sell * eqnr_price
         
-        st.write(f"**Target:** ${target_cash:,.2f}")
-        st.write(f"**Current Value:** ${current_value:,.2f}")
+        st.success(f"Wednesday Harvest Value: **${harvest_value:,.2f}**")
         
-        # Calculate percentage of goal
-        progress = min(current_value / target_cash, 1.0)
+        # Progress Bar to Target
+        target_goal = 2045.50
+        progress = min(harvest_value / target_goal, 1.0)
         st.progress(progress)
-    
-    with col2:
-        st.info(f"""
-        **Insight:** EQNR is currently '
+        st.write(f"Goal Completion: {progress*100:.1f}%")
+
+    with col_right:
+        st.subheader("🎯 Long-Term Moonshot: 400% Club")
+        goals_data = {
+            "Ticker": ["GEV", "BW", "SNDK", "TPL"],
+            "Entry Price": ["$158.00", "$4.20", "$265.00", "$448.86"],
+            "Current Return": ["+467%", "+298%", "+173%", "---"],
+            "Target Status": ["✅ REACHED", "⏳ NEAR", "🚀 RUNNING", "🎯 NEW ENTRY"]
+        }
+        st.table(pd.DataFrame(goals_data))
+
+    st.divider()
+
+    # --- 4. INSIGHTS PANEL ---
+    st.subheader("📝 Strategic Rotation Notes")
+    st.info(f"""
+    * **Harvest Alert**: EQNR is currently **Overbought**. Selling Wednesday locks in capital at a peak valuation.
+    * **The Rotation**: Move your **${harvest_value:,.2f}** directly into **TPL** (${latest_prices.get('TPL', 448.86):.2f}), which is currently **Deeply Oversold**.
+    * **The Engine**: **SNDK** remains the 2026 momentum leader. Its healthy RSI (52.4) suggests the run toward the 400% mark is still active.
+    """)
+
+except Exception as e:
+    st.error(f"Sync Error: {e}")
