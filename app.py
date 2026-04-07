@@ -7,9 +7,10 @@ st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
 # --- 2. THE ALPHA SCOUT FUNCTION ---
 def alpha_scout():
-    st.title("🚀 Alpha Scout: 100% Club Hunter")
+    st.title("🚀 Alpha Scout: 400% Club Hunter")
     
-    # EXACT 4-SPACE INDENTATION
+    # 4-SPACE INDENTATION: REQUIRED FOR DEPLOYMENT
+    # Note: Use 'PBR-A' for Petrobras Preferred to avoid sync errors
     power_tickers = ["GEV", "BW", "PBR-A", "EQNR"]
     
     try:
@@ -18,11 +19,21 @@ def alpha_scout():
         
         col1, col2, col3, col4 = st.columns(4)
         
-        # Displaying the "Power Wall"
-        col1.metric("GEV", f"${p_data['GEV']:.2f}", "Target: $1,735")
-        col2.metric("BW", f"${p_data['BW']:.2f}", "Target: $25.00")
-        col3.metric("PBR-A", f"${p_data['PBR-A']:.2f}", "Div: Apr 24")
+        # --- POWER WALL METRICS ---
+        # GEV: $150B Backlog | 2026 Revenue Target: $44B-$45B
+        col1.metric("GEV", f"${p_data['GEV']:.2f}", "Backlog: $150B")
+        
+        # BW: $2.8B Backlog (Up 470%) | $12B+ Pipeline
+        col2.metric("BW", f"${p_data['BW']:.2f}", "Backlog: $2.8B")
+        
+        # PBR-A: Dividend Yield ~7.1% - 10% 
+        col3.metric("PBR-A", f"${p_data['PBR-A']:.2f}", "Yield: ~7.2%")
+        
+        # EQNR: Buy-back program active until March 30, 2026
         col4.metric("EQNR", f"${p_data['EQNR']:.2f}", "Sell: Wed")
+        
+        st.divider()
+        st.info("💡 Pro Tip: BW's $12B project pipeline is currently ~5.7x its Market Cap.")
         
     except Exception as e:
         st.error(f"Sync Error: {e}")
