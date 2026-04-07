@@ -1,29 +1,24 @@
-import streamlit as st
-import pandas as pd
-import yfinance as yf
-
-# --- 1. SETTINGS ---
-st.set_page_config(page_title="Strategic US Terminal", layout="wide")
-
-# --- 2. THE ALPHA SCOUT FUNCTION ---
-def alpha_scout():
-    st.title("🚀 Alpha Scout: 100% Club Hunter")
+def trade_scout():
+    st.title("🔭 New Trade Scout")
     
-    # EXACT 4-SPACE INDENTATION
-    power_tickers = ["GEV", "BW", "PBR-A", "EQNR"]
+    # The 2026 "Power Trio"
+    scout_tickers = ["BE", "MTZ", "CCJ"]
     
-    try:
-        # Pulling live data for April 6, 2026
-        p_data = yf.download(power_tickers, period="5d")['Close'].iloc[-1]
+    for ticker in scout_tickers:
+        t_obj = yf.Ticker(ticker)
+        # Getting today's volume vs 10-day average
+        hist = t_obj.history(period="10d")
+        avg_vol = hist['Volume'].mean()
+        curr_vol = hist['Volume'].iloc[-1]
         
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("GEV", f"${p_data['GEV']:.2f}", "Target: $1,735")
-        col2.metric("BW", f"${p_data['BW']:.2f}", "Target: $25.00")
-        col3.metric("PBR-A", f"${p_data['PBR-A']:.2f}", "Div: Apr 24")
-        col4.metric("EQNR", f"${p_data['EQNR']:.2f}", "Sell: Wed")
-    except Exception as e:
-        st.error(f"Sync Error: {e}")
-
-# --- 3. EXECUTION ---
-if __name__ == "__main__":
-    alpha_scout()
+        col1, col2 = st.columns([1, 3])
+        
+        # ALERT: If volume is 2x average, show a "BUY SIGNAL"
+        if curr_vol > (avg_vol * 2):
+            col1.success(f"🔥 {ticker} BREAKOUT")
+        else:
+            col1.info(f"🔎 {ticker} Tracking")
+            
+        with col2:
+            st.write(f"**{ticker}** | Volume: {curr_vol:,.00f} vs Avg: {avg_vol:,.00f}")
+            st.progress(min(curr_vol/avg_vol/3, 1.0)) # Visual bar of volume intensity
