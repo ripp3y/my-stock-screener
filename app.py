@@ -30,6 +30,7 @@ st.title("🚀 Alpha Scout: Institutional Command Center")
 team_tickers = ["GEV", "BW", "PBR-A", "EQNR", "TPL", "SNDK", "MRNA"]
 
 try:
+    # Fetch 6 months of data
     data = yf.download(team_tickers, period="6mo", group_by='ticker')
     cols = st.columns(len(team_tickers))
     
@@ -41,6 +42,7 @@ try:
         rsi, ema_series, pct_dist = get_technical_signals(ticker_df)
         
         with cols[i]:
+            # Metric shows price and the % distance to the 9-EMA floor
             st.metric(ticker, f"${price:.2f}", f"{pct_dist:+.1f}% Cushion")
             if pct_dist < 0: st.error("📉 TREND BREAK")
             elif rsi > 70: st.warning("🔥 BOOMING")
@@ -56,30 +58,30 @@ try:
         df = data[selected_ticker].dropna()
         _, ema_9_series, _ = get_technical_signals(df)
         
-        # Setup Subplots (70% Candles, 30% Volume)
+        # Setup Subplots (70% Price Chart, 30% Volume Bars)
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
                             vertical_spacing=0.03, row_heights=[0.7, 0.3])
 
-        # A. Candlesticks
+        # A. Candlesticks (The main direction)
         fig.add_trace(go.Candlestick(
             x=df.index, open=df['Open'], high=df['High'],
             low=df['Low'], close=df['Close'], name="Price"
         ), row=1, col=1)
 
-        # B. 9-Day EMA Floor
+        # B. 9-Day EMA (The orange floor line)
         fig.add_trace(go.Scatter(
             x=df.index, y=ema_9_series, 
             line=dict(color='orange', width=2), name="9-Day EMA"
         ), row=1, col=1)
 
-        # C. Volume Bars (Color-coded)
+        # C. Volume Bars (Color-coded by day performance)
         vol_colors = ['#26a69a' if c >= o else '#ef5350' for o, c in zip(df['Open'], df['Close'])]
         fig.add_trace(go.Bar(
             x=df.index, y=df['Volume'], 
             marker_color=vol_colors, name="Volume"
         ), row=2, col=1)
 
-        # Layout & Formatting
+        # Layout & Formatting for Chromebook high-vis
         fig.update_layout(
             template="plotly_dark",
             xaxis_rangeslider_visible=False,
@@ -90,9 +92,23 @@ try:
         fig.update_yaxes(title_text="Price ($)", row=1, col=1)
         fig.update_yaxes(title_text="Volume", row=2, col=1)
         
-        # Fixed the closing parenthesis here!
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- 4. HARVEST & GOALS ---
+    # --- 4. STRATEGIC GOALS ---
     st.divider()
-    c1, c2 = st.columns(
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("💰 Harvest Progress")
+        shares = st.number_input("EQNR Shares to Sell", value=49)
+        val = shares * latest_prices.get('EQNR', 0)
+        st.success(f"Target Harvest: ${val:,.2f}")
+        st.progress(min(val/2055.55, 1.0))
+    with c2:
+        st.subheader("🎯 Moonshot: 400% Club")
+        st.table(pd.DataFrame({
+            "Ticker": ["GEV", "BW", "SNDK", "TPL"],
+            "Status": ["✅ Reached", "⏳ Near", "🚀 Running", "🎯 New Entry"]
+        }))
+
+except Exception as e:
+    st.error(f"Sync Error: {e}")
