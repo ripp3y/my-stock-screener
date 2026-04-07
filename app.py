@@ -17,43 +17,49 @@ def get_rsi(series, period=14):
 def alpha_scout():
     st.title("🔭 Alpha Scout: The 400% Expansion Team")
     
-    # Diversified 2026 Tickers
-    # GEV/BW (Power), PBR-A/EQNR/TPL (Energy/Land), SNDK (Storage), MRNA (Biotech)
+    # Your full 2026 Diversified Portfolio
     team_tickers = ["GEV", "BW", "PBR-A", "EQNR", "TPL", "SNDK", "MRNA"]
     
     try:
-        # Fetch 6 months of data for RSI calculation
+        # Fetching 6mo data for accurate RSI
         data = yf.download(team_tickers, period="6mo")['Close']
         latest_prices = data.iloc[-1]
         
-        # Build Grid Layout
+        # Grid Layout for scannability
         cols = st.columns(len(team_tickers))
         
         for i, ticker in enumerate(team_tickers):
             price = latest_prices[ticker]
             rsi_val = get_rsi(data[ticker]).iloc[-1]
             
-            # Status Logic
+            # 2026 Logic: Overbought > 70, Oversold < 30
             status = "Neutral"
-            if rsi_val > 70: status = "⚠️ Overbought"
-            elif rsi_val < 30: status = "✅ Oversold"
+            icon = ""
+            if rsi_val > 70: 
+                status = "⚠️ Overbought"
+            elif rsi_val < 30: 
+                status = "✅ Oversold"
             
             with cols[i]:
                 st.metric(ticker, f"${price:.2f}")
                 st.caption(f"RSI: {rsi_val:.1f}")
-                st.write(f"**{status}**")
+                if status != "Neutral":
+                    st.write(f"**{status}**")
+                else:
+                    st.write(status)
 
         st.divider()
+        
+        # Automated Strategy Panel
         st.subheader("📊 Strategic Rotation for Wednesday")
-        st.info("""
-        * **EQNR Harvest**: Target $41.95+ to lock in $2,045.50.
-        * **SNDK Rotation**: Watch the RSI. If SNDK stays below 70, it's the 2026 Momentum play.
-        * **MRNA Value**: Currently showing 'Oversold' signals; potential long-term biotech recovery.
+        st.info(f"""
+        * **EQNR Harvest**: Current Price **${latest_prices['EQNR']:.2f}** is near targets. Lock in gains.
+        * **TPL Opportunity**: RSI is **{get_rsi(data['TPL']).iloc[-1]:.1f}** (Oversold). Institutional entry signal.
+        * **SNDK Momentum**: Price **${latest_prices['SNDK']:.2f}** remains the 2026 leader.
         """)
         
     except Exception as e:
         st.error(f"Sync Error: {e}")
 
-# --- 3. EXECUTION ---
 if __name__ == "__main__":
     alpha_scout()
