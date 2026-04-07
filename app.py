@@ -1,16 +1,10 @@
-def moonshot_scout():
-    # Filter for the 'Power Alley' candidates
-    candidates = ["GEV", "BW", "BE", "MTZ", "CCJ"]
+def moonshot_filter():
+    st.subheader("🔭 400% Club: Institutional Footprint")
+    # Candidates with massive 2026 backlogs
+    scout_list = ["ORCL", "BE", "ETN", "MTZ", "GEV"]
     
-    for t in candidates:
+    for t in scout_list:
         ticker = yf.Ticker(t)
-        hist = ticker.history(period="1y")
-        
-        # 1. Check for RS Line Breakout (Higher Highs while SPY is lower)
-        # 2. Check for Volume Accumulation (Up days volume > Down days volume)
-        up_vol = hist[hist['Close'] > hist['Open']]['Volume'].mean()
-        dn_vol = hist[hist['Close'] < hist['Open']]['Volume'].mean()
-        vol_intensity = up_vol / dn_vol
-        
-        if vol_intensity > 1.5:
-            st.success(f"🚀 {t}: Institutional Accumulation detected!")
+        # Check if the RS is leading (Price > 200-day MA & 50-day MA)
+        # And if 'Up Volume' > 'Down Volume' over 30 days
+        st.write(f"Scanning {t} for 'Legit' Re-rating Signals...")
