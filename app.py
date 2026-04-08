@@ -5,111 +5,95 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # --- 1. CONFIG & CACHING ---
-st.set_page_config(page_title="Alpha Scout: Tactical Terminal", layout="wide")
+st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
 
-# Static Analyst Targets for your active and scouted team
 target_map = {
     "GEV": 863.61, "BW": 20.33, "PBR-A": 16.02, 
     "TPL": 639.00, "SNDK": 95.00, "MRNA": 115.00, 
     "CIEN": 354.01, "TIGO": 73.20, "STX": 582.00
 }
 
-@st.cache_data(ttl=600) # Safety Cache to prevent Yahoo Rate Limits
+@st.cache_data(ttl=600)
 def fetch_ticker_data(tickers):
-    return yf.download(tickers, period="6mo", group_by='ticker')
+    # Bulk fetch history and info for financial metrics
+    data = yf.download(tickers, period="1y", group_by='ticker')
+    infos = {t: yf.Ticker(t).info for t in tickers}
+    return data, infos
 
-def get_technical_signals(df):
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    
+def get_signals(df):
     ema_9 = df['Close'].ewm(span=9, adjust=False).mean()
     ema_50 = df['Close'].ewm(span=50, adjust=False).mean()
-    current_price = df['Close'].iloc[-1]
-    
-    # Tactical Indicators
-    is_upward_trend = ema_50.iloc[-1] > ema_50.iloc[-5] 
-    is_dipping = current_price < ema_9.iloc[-1] and current_price > ema_50.iloc[-1]
-    cushion = ((current_price - ema_9.iloc[-1]) / ema_9.iloc[-1]) * 100
-    bottom_signal = (rsi.iloc[-1] > 30) and (rsi.iloc[-2] <= 30)
-    
-    return rsi, ema_9, cushion, bottom_signal, is_upward_trend, is_dipping
+    price = df['Close'].iloc[-1]
+    cushion = ((price - ema_9.iloc[-1]) / ema_9.iloc[-1]) * 100
+    is_up = ema_50.iloc[-1] > ema_50.iloc[-5]
+    is_dip = price < ema_9.iloc[-1] and price > ema_50.iloc[-1]
+    return cushion, is_up, is_dip
 
-# --- 2. LIVE SCOUT LEADERBOARD ---
-st.title("🚀 Alpha Scout: Strategic Command Center")
+# --- 2. DATA LOAD ---
+st.title("🚀 Alpha Scout: Strategic Terminal")
 team_tickers = list(target_map.keys())
 
 try:
-    data = fetch_ticker_data(team_tickers)
+    data, info_data = fetch_ticker_data(team_tickers)
     
-    # Pre-calculate for sorting
-    ticker_stats = []
-    for ticker in team_tickers:
-        t_df = data[ticker].dropna()
-        rsi_s, _, cushion, bottom, is_up, is_dip = get_technical_signals(t_df)
-        ticker_stats.append({
-            "ticker": ticker, "price": t_df['Close'].iloc[-1], "cushion": cushion,
-            "rsi": rsi_s.iloc[-1], "bottom": bottom, "is_up": is_up, "is_dip": is_dip
-        })
+    # Leaderboard Logic
+    stats = []
+    for t in team_tickers:
+        t_df = data[t].dropna()
+        cush, up, dip = get_signals(t_df)
+        stats.append({"ticker": t, "cushion": cush, "up": up, "dip": dip, "price": t_df['Close'].iloc[-1]})
+    
+    # Sort by Cushion (Highest to Left)
+    sorted_stats = sorted(stats, key=lambda x: x['cushion'], reverse=True)
 
-    # AUTO-SORT: Highest Cushion (Strongest Runners) to the left
-    sorted_stats = sorted(ticker_stats, key=lambda x: x['cushion'], reverse=True)
-
+    # 3. KPI HEADER (Professional Layout)
     cols = st.columns(len(sorted_stats))
-    for i, stat in enumerate(sorted_stats):
+    for i, s in enumerate(sorted_stats):
         with cols[i]:
-            st.metric(stat['ticker'], f"${stat['price']:.2f}", f"{stat['cushion']:+.1f}% Floor")
-            if stat['bottom']: st.success("🎯 BOTTOM FOUND")
-            elif stat['is_dip'] and stat['is_up']: st.warning("💎 VALUE DIP")
-            elif stat['cushion'] < 0: st.error("📉 TREND BREAK")
-            elif stat['rsi'] > 70: st.warning("🔥 BOOMING")
+            st.metric(s['ticker'], f"${s['price']:.2f}", f"{s['cushion']:+.1f}%")
+            if s['dip'] and s['up']: st.warning("💎 VALUE DIP")
+            elif s['cushion'] < 0: st.error("📉 BREAK")
             else: st.info("🚀 STRONG")
 
     st.divider()
 
-    # --- 3. DEEP DIVE & NEWS ---
-    col_chart, col_news = st.columns([2, 1])
-    selected_ticker = st.selectbox("Select Ticker for Strategic Analysis", [s['ticker'] for s in sorted_stats])
-    
-    with col_chart:
+    # 4. DEEP DIVE TABS
+    selected_ticker = st.selectbox("Strategic Analysis Selection", [x['ticker'] for x in sorted_stats])
+    tab1, tab2, tab3 = st.tabs(["📊 Technical Chart", "💰 Financial Intel", "📰 News Feed"])
+
+    with tab1:
+        # --- Chart Logic (Candles + Targets) ---
         df = data[selected_ticker].dropna()
-        rsi_s, ema_9_s, _, _, _, _ = get_technical_signals(df)
-        
-        fig = make_subplots(rows=3, cols=1, shared_xaxes=True, 
-                            vertical_spacing=0.04, row_heights=[0.5, 0.2, 0.3])
-
-        # Price and 9-EMA Floor
-        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'],
-                                     low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
+        ema_9_s = df['Close'].ewm(span=9, adjust=False).mean()
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
         fig.add_trace(go.Scatter(x=df.index, y=ema_9_s, line=dict(color='orange', width=2), name="9-EMA"), row=1, col=1)
-
-        # White Dotted Target Line
+        
+        # Target Line
         t_price = target_map.get(selected_ticker)
         fig.add_hline(y=t_price, line_dash="dot", line_color="white", row=1, col=1)
-        fig.add_annotation(xref="paper", yref="y", x=0.98, y=t_price, text=f"TARGET: ${t_price}", showarrow=False, font=dict(size=10, color="white"), row=1, col=1)
-
-        # RSI Momentum
-        fig.add_trace(go.Scatter(x=df.index, y=rsi_s, line=dict(color='#A020F0', width=2), name="RSI"), row=2, col=1)
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="lime", row=2, col=1)
-
-        # Volume
-        vol_colors = ['#26a69a' if c >= o else '#ef5350' for o, c in zip(df['Open'], df['Close'])]
-        fig.add_trace(go.Bar(x=df.index, y=df['Volume'], marker_color=vol_colors, name="Volume"), row=3, col=1)
         
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=800, showlegend=False)
+        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=600)
         st.plotly_chart(fig, use_container_width=True)
 
-    with col_news:
-        st.subheader(f"📰 {selected_ticker} Intelligence")
+    with tab2:
+        # --- EPS and Fundamentals ---
+        info = info_data.get(selected_ticker, {})
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("EPS (TTM)", f"${info.get('trailingEps', 0.0):.2f}")
+        c2.metric("P/E Ratio", f"{info.get('trailingPE', 0.0):.1f}x")
+        c3.metric("Profit Margin", f"{info.get('profitMargins', 0.0)*100:.1f}%")
+        c4.metric("Market Cap", f"${info.get('marketCap', 0)/1e9:.1f}B")
+        
+        st.write(f"**Business Summary:** {info.get('longBusinessSummary', 'No summary available.')[:500]}...")
+
+    with tab3:
+        # --- News Scout ---
         news = yf.Ticker(selected_ticker).news
-        if news:
-            for item in news[:4]:
-                st.write(f"**{item['title']}**")
-                st.write(f"Source: {item['publisher']} | [Read]({item['link']})")
-                st.divider()
+        for item in news[:5]:
+            st.write(f"**{item['title']}** ({item['publisher']})")
+            st.write(f"[Read Article]({item['link']})")
+            st.divider()
 
 except Exception as e:
-    st.error(f"Sync Issue: {e}. Check back in 10 minutes.")
+    st.error(f"Sync Issue: {e}")
