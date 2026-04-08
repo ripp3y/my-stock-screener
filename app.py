@@ -77,15 +77,21 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        # --- EPS and Fundamentals ---
-        info = info_data.get(selected_ticker, {})
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("EPS (TTM)", f"${info.get('trailingEps', 0.0):.2f}")
-        c2.metric("P/E Ratio", f"{info.get('trailingPE', 0.0):.1f}x")
-        c3.metric("Profit Margin", f"{info.get('profitMargins', 0.0)*100:.1f}%")
-        c4.metric("Market Cap", f"${info.get('marketCap', 0)/1e9:.1f}B")
-        
-        st.write(f"**Business Summary:** {info.get('longBusinessSummary', 'No summary available.')[:500]}...")
+        # --- Inside your Financial Intel Tab ---
+with tab2:
+    info = info_data.get(selected_ticker, {})
+    pe = info.get('trailingPE', 0.0)
+    
+    # Value Logic: Is it cheap or expensive?
+    pe_color = "normal"
+    if pe > 60: pe_color = "inverse" # High P/E (Red/Warning)
+    elif pe < 25: pe_color = "normal" # Low P/E (Green/Value)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("EPS (TTM)", f"${info.get('trailingEps', 0.0):.2f}")
+    c2.metric("P/E Ratio", f"{pe:.1f}x", delta="EXTREME" if pe > 60 else None, delta_color=pe_color)
+    c3.metric("Profit Margin", f"{info.get('profitMargins', 0.0)*100:.1f}%")
+    c4.metric("Market Cap", f"${info.get('marketCap', 0)/1e9:.1f}B")
 
     with tab3:
         # --- News Scout ---
