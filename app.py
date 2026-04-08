@@ -4,10 +4,16 @@ import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# --- 1. CONFIG & CACHING ---
-st.set_page_config(page_title="Alpha Scout: Strategic Terminal", layout="wide")
+st.set_page_config(page_title="Alpha Scout: Tactical Terminal", layout="wide")
 
-@st.cache_data(ttl=600) # Prevents Yahoo Rate Limits (10-min cache)
+# Updated Target Map for the new Team
+target_map = {
+    "GEV": 863.61, "BW": 20.33, "PBR-A": 16.02, 
+    "EQNR": 29.50, "TPL": 639.00, "SNDK": 95.00, 
+    "MRNA": 115.00, "CIEN": 354.01, "TIGO": 73.20, "STX": 582.00
+}
+
+@st.cache_data(ttl=600)
 def fetch_ticker_data(tickers):
     return yf.download(tickers, period="6mo", group_by='ticker')
 
@@ -24,9 +30,8 @@ def get_technical_signals(data):
     is_bottoming = (rsi.iloc[-1] > 30) and (rsi.iloc[-2] <= 30)
     return rsi, ema_9, pct_dist, is_bottoming
 
-# --- 2. LIVE SCOUT ---
 st.title("🚀 Alpha Scout: Strategic Command Center")
-team_tickers = ["GEV", "BW", "PBR-A", "EQNR", "TPL", "SNDK", "MRNA"]
+team_tickers = list(target_map.keys()) # All 10 stocks now tracked
 
 try:
     data = fetch_ticker_data(team_tickers)
@@ -48,7 +53,6 @@ try:
 
     st.divider()
 
-    # --- 3. DIRECTIONAL ANALYSIS ---
     selected_ticker = st.selectbox("Select Ticker for Deep Dive", team_tickers)
     if selected_ticker:
         df = data[selected_ticker].dropna()
@@ -61,29 +65,19 @@ try:
                                      low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
         fig.add_trace(go.Scatter(x=df.index, y=ema_9_s, line=dict(color='orange', width=2), name="9-EMA"), row=1, col=1)
         fig.add_trace(go.Scatter(x=df.index, y=rsi_s, line=dict(color='#A020F0', width=2), name="RSI"), row=2, col=1)
+
+        # ADDED: Target Price Dotted Line
+        t_price = target_map.get(selected_ticker)
+        fig.add_hline(y=t_price, line_dash="dot", line_color="white", row=1, col=1)
+        fig.add_annotation(xref="paper", yref="y", x=0.98, y=t_price, text=f"TARGET: ${t_price}", showarrow=False, font=dict(size=10, color="white"), row=1, col=1)
+
         fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
         fig.add_hline(y=30, line_dash="dash", line_color="lime", row=2, col=1)
-
-        fig.add_annotation(xref="paper", yref="paper", x=0.01, y=0.98, text="<span style='font-size:10px; color:orange;'>ORANGE: 9-DAY EMA FLOOR</span>", showarrow=False)
-        fig.add_annotation(xref="paper", yref="paper", x=0.01, y=0.42, text="<span style='font-size:10px; color:#A020F0;'>PURPLE: RSI MOMENTUM</span>", showarrow=False)
 
         vol_colors = ['#26a69a' if c >= o else '#ef5350' for o, c in zip(df['Open'], df['Close'])]
         fig.add_trace(go.Bar(x=df.index, y=df['Volume'], marker_color=vol_colors, name="Volume"), row=3, col=1)
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=800, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- 4. NEWS & NOTES ---
-    st.divider()
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader(f"📰 {selected_ticker} News Scout")
-        news = yf.Ticker(selected_ticker).news
-        for item in news[:3]:
-            st.write(f"**{item['title']}** ({item['publisher']})")
-    with c2:
-        st.subheader("🎯 Tactical Strategy")
-        st.write(f"**EQNR Harvest Complete.** Cash ready for **TPL** rotation.")
-        st.write("Waiting for '🎯 BOTTOM FOUND' alert to confirm the dip is over.")
-
 except Exception as e:
-    st.error(f"Terminal Offline: {e}")
+    st.error(f"Sync Error: {e}")
