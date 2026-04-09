@@ -50,7 +50,7 @@ if all_data is not None:
     t1, t2 = st.tabs(["📊 Technicals", "🛡️ Risk Scout"])
 
     with t1:
-        # CANDLESTICK WITH AUTO-SCALE
+        # CANDLESTICK WITH "FLAT" RATIO
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index,
             open=df_sel['Open'],
@@ -60,31 +60,12 @@ if all_data is not None:
             name=sel
         )])
         
-        # Fixing the "Jammed" look
+        # Adjusting for a flatter, horizontal look
         fig.update_layout(
             template="plotly_dark",
             xaxis_rangeslider_visible=False,
-            height=500, # Increased height for mobile
-            margin=dict(l=10, r=10, t=30, b=10),
+            height=320, # Reduced height to "flatten" the candles
+            margin=dict(l=5, r=5, t=10, b=10), # Tight margins to maximize width
             yaxis=dict(
-                title="Price ($)",
-                fixedrange=False, # Allows you to pinch-zoom the price scale
-                autorange=True   # Forces chart to fit the current candles
-            )
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    with t2:
-        high_low = df_sel['High'] - df_sel['Low']
-        high_cp = (df_sel['High'] - df_sel['Close'].shift()).abs()
-        low_cp = (df_sel['Low'] - df_sel['Close'].shift()).abs()
-        tr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1)
-        atr = tr.rolling(14).mean().iloc[-1]
-        curr_p = df_sel['Close'].iloc[-1]
-        t_stop = curr_p - (atr * 2.5)
-        
-        st.metric("ATR Volatility", f"${atr:.2f}")
-        st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${curr_p - t_stop:.2f} Buffer")
-
-else:
-    st.error("📡 Sync Issue.")
+                fixedrange=False,
+                side
