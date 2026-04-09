@@ -58,9 +58,9 @@ if all_data is not None:
         try:
             df = all_data[t].dropna()
             price = df['Close'].iloc[-1]
-            # Daily % Change calculation
+            # Daily % Change
             daily_change = ((price - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
-            # RS Score (vs SPY 20d)
+            # RS Score (Relative Strength vs SPY 20d)
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             stats.append({"ticker": t, "price": price, "rs": rs, "daily": daily_change})
         except: continue
@@ -70,11 +70,13 @@ if all_data is not None:
     cols = st.columns(len(sorted_stats))
     for i, s in enumerate(sorted_stats):
         with cols[i]:
-            # Now includes Daily Gain/Loss % in the metric delta
-            st.metric(label=s['ticker'], 
-                      value=f"${s['price']:.2f}", 
-                      delta=f"{s['daily']:+.2f}% Daily")
-            st.caption(f"{s['rs']*100:+.1f}% Relative Str.")
+            # Layout: Daily % to the right of price, RS Score directly underneath
+            st.metric(
+                label=s['ticker'], 
+                value=f"${s['price']:.2f}", 
+                delta=f"{s['daily']:+.2f}%"
+            )
+            st.caption(f"RS: {s['rs']*100:+.1f}%")
 
     st.divider()
 
@@ -97,17 +99,16 @@ if all_data is not None:
         t_stop = df_r['Close'].iloc[-1] - (atr * 2.5)
         
         c1, c2 = st.columns(2)
-        # Added 'help' parameter for detailed description
         c1.metric("ATR Volatility", 
                   f"${atr:.2f}", 
-                  help="Average True Range: The average daily movement. A higher number means the stock is 'jumpier'. Use this to avoid getting stopped out by normal daily noise.")
+                  help="ATR (Average True Range) measures the stock's 'daily noise'. A higher ATR means the stock is more volatile.")
         
         c2.metric("Trailing Stop", 
                   f"${t_stop:.2f}", 
                   delta=f"${df_r['Close'].iloc[-1] - t_stop:.2f} Buffer",
-                  help="Your 'Hard Floor'. If the price drops below this, the trend is likely broken.")
+                  help="The safety floor. If price hits this, the 6-month trend is in jeopardy.")
         
-        if df_r['Close'].iloc[-1] < t_stop: st.error("🚨 EXIT ALERT: Price breached volatility floor.")
+        if df_r['Close'].iloc[-1] < t_stop: st.error("🚨 EXIT ALERT: Volatility floor breached.")
         else: st.success("✅ STATUS: Holding above volatility floor.")
 
     with tab3:
@@ -126,4 +127,4 @@ if all_data is not None:
         st.plotly_chart(px.imshow(corr_df.corr(), text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
 
 else:
-    st.error("📡 Sync Issue: Check API connection.")
+    st.error("📡 Sync Issue
