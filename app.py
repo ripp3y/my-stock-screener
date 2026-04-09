@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 # --- 1. CONFIG & API KEYS ---
 st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
-FINNHUB_KEY = d7c0uh1r01quh9fc4hegd7c0uh1r01quh9fc4hf0 # Paste your free key here
+FINNHUB_KEY = "d7c0uh1r01quh9fc4hegd7c0uh1r01quh9fc4hf0" # Paste your free key here
 
 team_intel = {
     "FIX": {"target": 1800.0, "own": 96.5, "earn": "2026-05-01"},
