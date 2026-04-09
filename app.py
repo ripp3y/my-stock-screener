@@ -7,7 +7,7 @@ from datetime import datetime
 # --- 1. COMMAND CONFIG ---
 st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
 
-# Static intel to prevent "0.0%" errors
+# Static registry to prevent "0.0%" or "TBD" errors on mobile
 team_intel = {
     "FIX": {"target": 1800.0, "own": 96.5, "earn": "2026-05-01"},
     "ATRO": {"target": 95.0, "own": 82.1, "earn": "2026-04-28"},
@@ -23,21 +23,24 @@ team_intel = {
 def fetch_scout_data(tickers):
     all_syms = tickers + ["SPY"]
     try:
-        return yf.download(all_syms, period="1y", group_by='ticker')
-    except: return None
+        data = yf.download(all_syms, period="1y", interval="1d", group_by='ticker')
+        return data
+    except Exception: return None
 
+# FIX: Added .get() to prevent 'KeyError' crashes
 def get_sentiment(news_list):
-    bull = ["upgrade", "beat", "growth", "buy", "surge", "positive"]
-    bear = ["downgrade", "miss", "negative", "loss", "sell", "drop"]
+    bullish = ["upgrade", "beat", "growth", "buy", "surge", "positive"]
+    bearish = ["downgrade", "miss", "negative", "loss", "sell", "drop"]
     score = 0
+    if not news_list: return "NEUTRAL"
     for item in news_list:
-        # Safety Filter: Prevents KeyError: 'title'
-        title = item.get('title', '').lower()
-        score += sum(1 for w in bull if w in title)
-        score -= sum(1 for w in bear if w in title)
+        # Using .get() ensures the app won't crash if a field is missing
+        text = item.get('title', '').lower()
+        score += sum(1 for w in bullish if w in text)
+        score -= sum(1 for w in bearish if w in text)
     return "BULLISH" if score > 0 else "BEARISH" if score < 0 else "NEUTRAL"
 
-# --- 2. ENGINE ---
+# --- 2. COMMAND ENGINE ---
 st.title("🚀 Alpha Scout: Strategic Commander")
 tickers = list(team_intel.keys())
 data = fetch_scout_data(tickers)
@@ -49,15 +52,13 @@ if data is not None:
         try:
             df = data[t].dropna()
             price = df['Close'].iloc[-1]
-            # Accumulation (Vol > 120% of 20d avg)
+            # Accumulation & Relative Strength
             acc = df['Volume'].iloc[-1] > (df['Volume'].rolling(20).mean().iloc[-1] * 1.2)
-            # Relative Strength (vs SPY over 20 days)
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             days = (datetime.strptime(team_intel[t]['earn'], "%Y-%m-%d") - datetime.now()).days
             stats.append({"ticker": t, "price": price, "rs": rs, "acc": acc, "days": days})
-        except: continue
+        except Exception: continue
 
-    # LEADERBOARD (Ranked by RS Score)
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     cols = st.columns(len(sorted_stats))
     for i, s in enumerate(sorted_stats):
@@ -68,7 +69,7 @@ if data is not None:
 
     st.divider()
 
-    # --- 3. ANALYSIS ---
+    # --- 3. TACTICAL ANALYSIS ---
     sel = st.selectbox("Strategic Selection", [x['ticker'] for x in sorted_stats])
     tab1, tab2, tab3 = st.tabs(["📊 Technicals", "💰 Institutional", "📰 Sentiment"])
 
@@ -84,20 +85,25 @@ if data is not None:
         try:
             info = yf.Ticker(sel).info
             pe = info.get('trailingPE', 0.0)
-        except: pe = 0.0
+            margin = info.get('profitMargins', 0.0) * 100
+        except Exception: pe, margin = 0.0, 0.0
         c1, c2, c3 = st.columns(3)
         c1.metric("Inst. Own", f"{intel['own']}%")
         c2.metric("P/E Ratio", f"{pe:.1f}x", delta="DANGER" if pe > 50 else "OK", delta_color="inverse")
-        c3.metric("Earnings", intel['earn'])
-        st.progress(min(intel['own']/100, 1.0))
+        c3.metric("Net Margin", f"{margin:.1f}%")
 
     with tab3:
-        raw_news = yf.Ticker(sel).news
-        sent = get_sentiment(raw_news)
-        st.metric("Sentiment Score", sent, delta="BULLISH" if sent == "BULLISH" else "CAUTION")
-        for n in raw_news[:3]:
-            st.write(f"**{n.get('title', 'No Title')}**")
-            st.write(f"[Source]({n.get('link', '#')})")
-            st.divider()
+        try:
+            raw_news = yf.Ticker(sel).news
+            sent = get_sentiment(raw_news)
+            st.metric("Headlines Score", sent)
+            for n in raw_news[:3]:
+                # Safe link check
+                t_title = n.get('title', 'No Title Available')
+                t_link = n.get('link', '#')
+                st.write(f"**{t_title}**")
+                st.write(f"[Source]({t_link})")
+                st.divider()
+        except Exception: st.info("News feed currently unavailable.")
 else:
-    st.error("📡 Sync Issue: Yahoo is currently rate-limiting. Try again in 2 minutes.")
+    st.error("📡 Sync Issue: Refresh in 2m.")
