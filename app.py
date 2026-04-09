@@ -6,10 +6,10 @@ import plotly.express as px
 import requests
 from datetime import datetime
 
-# --- 1. CONFIG & API KEYS ---
+# --- 1. CONFIG & API KEY ---
 st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
 
-# Corrected: API Key must be in quotes to avoid NameError
+# Corrected: Ensure your key is in quotes
 FINNHUB_KEY = "d7c0uh1r01quh9fc4hegd7c0uh1r01quh9fc4hf0"
 
 team_intel = {
@@ -31,11 +31,15 @@ def fetch_scout_data(tickers):
     except: return None
 
 def fetch_insiders(symbol):
+    # Finnhub requires the token as a parameter
     url = f"https://finnhub.io/api/v1/stock/insider-transactions?symbol={symbol}&token={FINNHUB_KEY}"
     try:
         r = requests.get(url).json()
+        # Finnhub results are wrapped in a 'data' list
         data_list = r.get('data', [])
-        return pd.DataFrame(data_list) if data_list else pd.DataFrame()
+        if data_list:
+            return pd.DataFrame(data_list)
+        return pd.DataFrame()
     except: return pd.DataFrame()
 
 # --- 2. ENGINE ---
@@ -47,16 +51,12 @@ if all_data is not None:
     # Sidebar: Market Regime Scout
     with st.sidebar:
         st.header("🌐 Market Regime")
-        vix = all_data["^VIX"]['Close'].iloc[-1]
-        if vix < 20:
-            st.success(f"BULL REGIME (VIX: {vix:.1f})")
-            st.caption("Focus on high RS and Momentum.")
-        elif vix < 30:
-            st.warning(f"CAUTION (VIX: {vix:.1f})")
-            st.caption("Tighten Trailing Stops.")
-        else:
-            st.error(f"BEAR REGIME (VIX: {vix:.1f})")
-            st.caption("Prioritize Cash & Defensive sectors.")
+        try:
+            vix = all_data["^VIX"]['Close'].iloc[-1]
+            if vix < 20: st.success(f"BULL REGIME (VIX: {vix:.1f})")
+            elif vix < 30: st.warning(f"CAUTION (VIX: {vix:.1f})")
+            else: st.error(f"BEAR REGIME (VIX: {vix:.1f})")
+        except: st.info("VIX data unavailable.")
 
     stats = []
     spy_df = all_data["SPY"].dropna()
@@ -64,12 +64,10 @@ if all_data is not None:
         try:
             df = all_data[t].dropna()
             price = df['Close'].iloc[-1]
-            # RS Score (vs SPY 20d)
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             stats.append({"ticker": t, "price": price, "rs": rs})
         except: continue
 
-    # LEADERBOARD
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     cols = st.columns(len(sorted_stats))
     for i, s in enumerate(sorted_stats):
@@ -80,7 +78,7 @@ if all_data is not None:
 
     # --- 3. TACTICAL ANALYSIS ---
     sel = st.selectbox("Select Scout Target", [x['ticker'] for x in sorted_stats])
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Technicals", "🛡️ Risk & Money Flow", "🕵️ Insider Tracker", "🔗 Correlation"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders", "🔗 Correlation"])
 
     with tab1:
         df_sel = all_data[sel].dropna()
@@ -89,31 +87,35 @@ if all_data is not None:
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        st.subheader("Volatility Floor & Money Flow")
         df_r = all_data[sel].dropna()
-        
-        # 1. ATR Trailing Stop
         high_low = df_r['High'] - df_r['Low']
         high_cp = (df_r['High'] - df_r['Close'].shift()).abs()
         low_cp = (df_r['Low'] - df_r['Close'].shift()).abs()
         atr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1).rolling(14).mean().iloc[-1]
         t_stop = df_r['Close'].iloc[-1] - (atr * 2.5)
         
-        # 2. Chaikin Money Flow (CMF)
-        mf_mult = ((df_r['Close'] - df_r['Low']) - (df_r['High'] - df_r['Close'])) / (df_r['High'] - df_r['Low'])
-        mf_vol = mf_mult * df_r['Volume']
-        cmf = mf_vol.rolling(20).sum() / df_r['Volume'].rolling(20).sum()
-        curr_cmf = cmf.iloc[-1]
-
         c1, c2 = st.columns(2)
-        c1.metric("Money Flow (CMF)", f"{curr_cmf:.2f}", delta="ACCUMULATION" if curr_cmf > 0 else "DISTRIBUTION")
+        c1.metric("ATR Volatility", f"${atr:.2f}")
         c2.metric("Trailing Stop", f"${t_stop:.2f}", delta=f"${df_r['Close'].iloc[-1] - t_stop:.2f} Buffer")
         
-        if curr_cmf > 0: st.success("💎 Institutions are actively accumulating.")
-        else: st.warning("⚖️ Supply is outweighing demand.")
+        if df_r['Close'].iloc[-1] < t_stop: st.error("🚨 EXIT ALERT: Price breached volatility floor.")
+        else: st.success("✅ STATUS: Holding above volatility floor.")
 
     with tab3:
         st.subheader("Live Insider Tracker (SEC Form 4)")
         insider_df = fetch_insiders(sel)
         if not insider_df.empty:
-            st.dataframe(insider_df[['transactionDate', 'name', 'share', 'change', 'transactionPrice']], use
+            # FIX: Ensure all columns exist before filtering to prevent KeyError
+            display_cols = [c for c in ['transactionDate', 'name', 'share', 'change', 'transactionPrice'] if c in insider_df.columns]
+            st.dataframe(insider_df[display_cols], use_container_width=True)
+        else:
+            st.info("No recent insider transactions found.")
+
+    with tab4:
+        st.subheader("Portfolio Correlation Matrix")
+        corr_df = pd.DataFrame()
+        for t in tickers: corr_df[t] = all_data[t]['Close'].pct_change()
+        st.plotly_chart(px.imshow(corr_df.corr(), text_auto=True, color_continuous_scale='RdBu_r'), use_container_width=True)
+
+else:
+    st.error("📡 Sync Issue: Check API connection.")
