@@ -45,39 +45,32 @@ if all_data is not None:
 
     # --- ANALYSIS HUB ---
     sel = st.selectbox("Select Target", [x['ticker'] for x in sorted_stats])
+    ticker_obj = yf.Ticker(sel)
     df_sel = all_data[sel].dropna()
     
-    t1, t2 = st.tabs(["📊 Technicals", "🛡️ Risk Scout"])
+    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders"])
 
     with t1:
-        # CANDLESTICK WITH "FLAT" RATIO
+        # FLAT CHART RATIO
         fig = go.Figure(data=[go.Candlestick(
-            x=df_sel.index,
-            open=df_sel['Open'],
-            high=df_sel['High'],
-            low=df_sel['Low'],
-            close=df_sel['Close'],
-            name=sel
+            x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
+            low=df_sel['Low'], close=df_sel['Close'], name=sel
         )])
-        
-        # Fixing the "Jammed" look by reducing height and opening width
         fig.update_layout(
-            template="plotly_dark",
-            xaxis_rangeslider_visible=False,
-            height=280, # DROPPED TO 280: This forces the "flatter" horizontal stretch
-            margin=dict(l=5, r=5, t=10, b=10),
-            yaxis=dict(
-                fixedrange=False,
-                side="right",
-                showgrid=True,
-                gridcolor="#333"
-            ),
+            template="plotly_dark", xaxis_rangeslider_visible=False,
+            height=300, margin=dict(l=5, r=5, t=10, b=10),
+            yaxis=dict(fixedrange=False, side="right", showgrid=True, gridcolor="#333"),
             xaxis=dict(showgrid=False)
         )
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # Risk Scout metrics
+        # ATR RISK CALC
         high_low = df_sel['High'] - df_sel['Low']
         tr = pd.concat([high_low, (df_sel['High']-df_sel['Close'].shift()).abs(), (df_sel['Low']-df_sel['Close'].shift()).abs()], axis=1).max(axis=1)
-        atr
+        atr = tr.rolling(14).mean().iloc[-1]
+        curr_p = df_sel['Close'].iloc[-1]
+        t_stop = curr_p - (atr * 2.5)
+        
+        st.metric("ATR Volatility", f"${atr:.2f}")
+        st.metric("
