@@ -9,7 +9,6 @@ from datetime import datetime
 # --- 1. CONFIG & API KEY ---
 st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
 
-# Corrected: Ensure your key is in quotes
 FINNHUB_KEY = "d7c0uh1r01quh9fc4hegd7c0uh1r01quh9fc4hf0"
 
 team_intel = {
@@ -31,24 +30,19 @@ def fetch_scout_data(tickers):
     except: return None
 
 def fetch_insiders(symbol):
-    # Finnhub requires the token as a parameter
     url = f"https://finnhub.io/api/v1/stock/insider-transactions?symbol={symbol}&token={FINNHUB_KEY}"
     try:
         r = requests.get(url).json()
-        # Finnhub results are wrapped in a 'data' list
         data_list = r.get('data', [])
-        if data_list:
-            return pd.DataFrame(data_list)
-        return pd.DataFrame()
+        return pd.DataFrame(data_list) if data_list else pd.DataFrame()
     except: return pd.DataFrame()
 
 # --- 2. ENGINE ---
-st.title("🚀 Alpha Scout: Institutional Command")
+st.title("🚀 Alpha Scout: Strategic Commander")
 tickers = list(team_intel.keys())
 all_data = fetch_scout_data(tickers)
 
 if all_data is not None:
-    # Sidebar: Market Regime Scout
     with st.sidebar:
         st.header("🌐 Market Regime")
         try:
@@ -64,15 +58,23 @@ if all_data is not None:
         try:
             df = all_data[t].dropna()
             price = df['Close'].iloc[-1]
+            # Daily % Change calculation
+            daily_change = ((price - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
+            # RS Score (vs SPY 20d)
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
-            stats.append({"ticker": t, "price": price, "rs": rs})
+            stats.append({"ticker": t, "price": price, "rs": rs, "daily": daily_change})
         except: continue
 
+    # LEADERBOARD (Sorted by Strength)
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     cols = st.columns(len(sorted_stats))
     for i, s in enumerate(sorted_stats):
         with cols[i]:
-            st.metric(s['ticker'], f"${s['price']:.2f}", f"{s['rs']*100:+.1f}% RS")
+            # Now includes Daily Gain/Loss % in the metric delta
+            st.metric(label=s['ticker'], 
+                      value=f"${s['price']:.2f}", 
+                      delta=f"{s['daily']:+.2f}% Daily")
+            st.caption(f"{s['rs']*100:+.1f}% Relative Str.")
 
     st.divider()
 
@@ -95,8 +97,15 @@ if all_data is not None:
         t_stop = df_r['Close'].iloc[-1] - (atr * 2.5)
         
         c1, c2 = st.columns(2)
-        c1.metric("ATR Volatility", f"${atr:.2f}")
-        c2.metric("Trailing Stop", f"${t_stop:.2f}", delta=f"${df_r['Close'].iloc[-1] - t_stop:.2f} Buffer")
+        # Added 'help' parameter for detailed description
+        c1.metric("ATR Volatility", 
+                  f"${atr:.2f}", 
+                  help="Average True Range: The average daily movement. A higher number means the stock is 'jumpier'. Use this to avoid getting stopped out by normal daily noise.")
+        
+        c2.metric("Trailing Stop", 
+                  f"${t_stop:.2f}", 
+                  delta=f"${df_r['Close'].iloc[-1] - t_stop:.2f} Buffer",
+                  help="Your 'Hard Floor'. If the price drops below this, the trend is likely broken.")
         
         if df_r['Close'].iloc[-1] < t_stop: st.error("🚨 EXIT ALERT: Price breached volatility floor.")
         else: st.success("✅ STATUS: Holding above volatility floor.")
@@ -105,7 +114,6 @@ if all_data is not None:
         st.subheader("Live Insider Tracker (SEC Form 4)")
         insider_df = fetch_insiders(sel)
         if not insider_df.empty:
-            # FIX: Ensure all columns exist before filtering to prevent KeyError
             display_cols = [c for c in ['transactionDate', 'name', 'share', 'change', 'transactionPrice'] if c in insider_df.columns]
             st.dataframe(insider_df[display_cols], use_container_width=True)
         else:
