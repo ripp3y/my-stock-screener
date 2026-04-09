@@ -27,4 +27,20 @@ team_intel = {
 def fetch_scout_data(tickers):
     all_syms = tickers + ["SPY", "^VIX"]
     try:
-        return yf.download(all_syms, period="1
+        return yf.download(all_syms, period="1y", interval="1d", group_by='ticker')
+    except:
+        return None
+
+def fetch_insiders(symbol):
+    url = f"https://finnhub.io/api/v1/stock/insider-transactions?symbol={symbol}&token={FINNHUB_KEY}"
+    try:
+        r = requests.get(url).json()
+        data_list = r.get('data', [])
+        return pd.DataFrame(data_list) if data_list else pd.DataFrame()
+    except:
+        return pd.DataFrame()
+
+# --- 2. THE ENGINE ---
+st.title("🚀 Alpha Scout: Strategic Commander")
+tickers = list(team_intel.keys())
+all_data = fetch
