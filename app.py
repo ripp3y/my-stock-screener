@@ -4,27 +4,25 @@ import yfinance as yf
 import plotly.graph_objects as go
 import requests
 
-# --- 1. SETTINGS & REFINED MOBILE CSS ---
-st.set_page_config(page_title="Alpha Scout", layout="wide")
+# --- 1. CONFIG & PRO STYLING ---
+st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
 
 st.markdown("""
     <style>
-    [data-testid="stMetricValue"] { font-size: 28px !important; color: #ffffff; }
+    /* Metric Card Styling */
     div[data-testid="column"] { 
         padding: 15px; 
         border-radius: 10px;
         background: #1e1e1e;
-        margin-bottom: 10px;
-        border-left: 5px solid #4CAF50;
+        border-bottom: 2px solid #4CAF50;
     }
-    /* Institutional highlight box */
-    .inst-box {
-        background-color: #262730;
+    /* Risk Footer Styling */
+    .risk-footer {
         padding: 20px;
+        background-color: #262626;
         border-radius: 10px;
-        border: 1px solid #4CAF50;
-        text-align: center;
-        margin-bottom: 20px;
+        border: 1px solid #444;
+        margin-top: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -42,16 +40,14 @@ def fetch_scout_data(tickers):
     try:
         df = yf.download(syms, period="1y", group_by='ticker')
         return df.ffill()
-    except:
-        return None
+    except: return None
 
-def fetch_insider_data(symbol):
+def fetch_insiders(symbol):
     url = f"https://finnhub.io/api/v1/stock/insider-transactions?symbol={symbol}&token={FINNHUB_KEY}"
     try:
         r = requests.get(url).json()
         return pd.DataFrame(r.get('data', []))
-    except:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 # --- 2. ENGINE ---
 st.title("🚀 Alpha Scout: Strategic Commander")
@@ -59,94 +55,91 @@ tickers = list(team_intel.keys())
 all_data = fetch_scout_data(tickers)
 
 if all_data is not None:
-    stats = []
     spy_df = all_data["SPY"]
+    stats = []
     
     for t in tickers:
         try:
             df = all_data[t].dropna()
             if df.empty: continue
             price = df['Close'].iloc[-1]
-            prev_close = df['Close'].iloc[-2]
-            day_pct = ((price - prev_close) / prev_close) * 100
+            day_pct = ((price - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             stats.append({"ticker": t, "price": price, "rs": rs, "daily": day_pct})
         except: continue
 
+    # LEADERBOARD
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
-    
-    for s in sorted_stats:
-        with st.container():
-            c1, c2 = st.columns([2, 1])
-            c1.metric(label=f"Ticker: {s['ticker']}", value=f"${s['price']:.2f}")
-            c2.metric(label="Day %", value="", delta=f"{s['daily']:+.2f}%")
-            st.caption(f"Relative Strength vs S&P: **{s['rs']*100:+.1f}%**")
+    cols = st.columns(len(sorted_stats))
+    for i, s in enumerate(sorted_stats):
+        with cols[i]:
+            st.metric(label=s['ticker'], value=f"${s['price']:.2f}", delta=f"{s['daily']:+.2f}%")
+            st.caption(f"RS Score: **{s['rs']*100:+.1f}%**")
 
     st.divider()
 
-    # --- 3. TARGET FOCUS ---
-    sel = st.selectbox("Select Target", [x['ticker'] for x in sorted_stats])
-    t1, t2, t3 = st.tabs(["📊 Charts", "🛡️ Risk Scout", "🕵️ Insiders"])
+    # --- 3. TARGET DRILL-DOWN ---
+    sel = st.selectbox("Select Target for Analysis", [x['ticker'] for x in sorted_stats])
+    tab1, tab2, tab3 = st.tabs(["📊 Technicals", "🕵️ Insider Intelligence", "🛡️ Risk Management"])
 
-    with t1:
+    with tab1:
         df_sel = all_data[sel].dropna()
         fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], 
                         high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=400)
         st.plotly_chart(fig, use_container_width=True)
 
-    with t2:
+    with tab2:
+        st.subheader(f"Owner Trading Activity: {sel}")
+        insider_df = fetch_insiders(sel)
+        if not insider_df.empty:
+            # Color coding the Buy/Sell for clarity
+            insider_df['Action'] = insider_df['change'].apply(lambda x: "🟢 BUY" if x > 0 else "🔴 SELL")
+            display_df = insider_df[['transactionDate', 'name', 'Action', 'share', 'change', 'transactionPrice']].copy()
+            st.dataframe(display_df.style.applymap(
+                lambda x: 'color: #00ff00' if x == "🟢 BUY" else 'color: #ff4b4b' if x == "🔴 SELL" else '',
+                subset=['Action']
+            ), use_container_width=True)
+        else:
+            st.info("No recent Form 4 filings detected.")
+
+    with tab3:
         df_r = all_data[sel].dropna()
         atr = (df_r['High'] - df_r['Low']).rolling(14).mean().iloc[-1]
-        current_price = df_r['Close'].iloc[-1]
-        t_stop = current_price - (atr * 2.5)
+        t_stop = df_r['Close'].iloc[-1] - (atr * 2.5)
         
-        # Logic for Color-Coded Trailing Stop
-        buffer = current_price - t_stop
-        if buffer > (atr * 1.5):
-            stop_color = "normal"  # Green
-            stop_suffix = "↑ Strong Buffer"
-        elif buffer > 0:
-            stop_color = "off"     # Yellow/Gray
-            stop_suffix = "- Tightening"
-        else:
-            stop_color = "inverse" # Red
-            stop_suffix = "↓ BREACHED"
+        c1, c2, c3 = st.columns(3)
+        c1.metric("RS Score", f"{sorted_stats[0]['rs']*100:+.1f}%", 
+                  help="Relative Strength: Measures if the stock is beating the S&P 500. Above 0% means it's an Alpha leader.")
+        c2.metric("ATR (14d)", f"${atr:.2f}", 
+                  help="Average True Range: The 'heartbeat' of the stock. High ATR means wide daily swings.")
+        c3.metric("Trailing Stop", f"${t_stop:.2f}", delta=f"${df_r['Close'].iloc[-1]-t_stop:.2f} Buffer",
+                  help="The 'Exit Floor'. Calculated by taking the current price and subtracting 2.5x the daily volatility (ATR).")
 
-        st.metric("ATR Volatility", f"${atr:.2f}", 
-                  help="Measures current daily 'noise'. Higher ATR means wider swings.")
+    # --- 4. THE PROFESSIONAL RISK FOOTER ---
+    st.markdown('<div class="risk-footer">', unsafe_allow_html=True)
+    f1, f2, f3 = st.columns(3)
+    
+    with f1:
+        st.markdown("**Core Strategy**")
+        st.write("6-Month Growth / US Equities")
+        st.caption("Focusing on high EPS and Alpha momentum.")
         
-        st.metric(
-            label="Trailing Stop", 
-            value=f"${t_stop:.2f}", 
-            delta=f"${buffer:.2f} {stop_suffix}",
-            delta_color=stop_color,
-            help="Volatility-adjusted floor. Green indicates a healthy trend buffer. Red means the trend is likely broken."
-        )
-
-    with t3:
-        # 1. Institutional Ownership Header
-        try:
-            ticker_info = yf.Ticker(sel).info
-            inst_own = ticker_info.get('heldPercentInstitutions', 0) * 100
-            st.markdown(f"""
-                <div class="inst-box">
-                    <h3 style='margin:0; color:#4CAF50;'>Institutional Ownership</h3>
-                    <h1 style='margin:0;'>{inst_own:.1f}%</h1>
-                    <p style='margin:0; color:#888;'>Percentage of shares held by major funds and banks</p>
-                </div>
-            """, unsafe_allow_html=True)
-        except:
-            st.info("Institutional data currently unavailable.")
-
-        # 2. Insider Table
-        st.subheader("Recent Insider Activity (Form 4)")
-        insider_df = fetch_insider_data(sel)
-        if not insider_df.empty:
-            view_cols = [c for c in ['transactionDate', 'name', 'share', 'change'] if c in insider_df.columns]
-            st.dataframe(insider_df[view_cols], use_container_width=True)
+    with f2:
+        st.markdown("**Risk Protocol**")
+        if df_r['Close'].iloc[-1] < t_stop:
+            st.error("⚠️ ALERT: PRICE BELOW STOP")
         else:
-            st.info("No recent insider Form 4 filings found.")
+            st.success("🛡️ STATUS: TREND STABLE")
+        st.caption("Manual exit triggered if price closes below Trailing Stop.")
+
+    with f3:
+        st.markdown("**Market Status**")
+        vix = all_data["^VIX"]['Close'].iloc[-1]
+        st.info(f"VIX: {vix:.2f}")
+        st.caption("Volatility Index: Below 20 is favorable for growth.")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    st.error("📡 Connection lost. Check API connectivity.")
+    st.error("📡 Sync Issue: Verify API connection and Ticker list.")
