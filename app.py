@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime
 
-# --- 1. COMMAND CONFIG ---
+# --- 1. CONFIG & RECOVERY DATA ---
 st.set_page_config(page_title="Alpha Scout Pro", layout="wide")
 
-# Static registry to prevent "0.0%" or "TBD" errors on mobile
 team_intel = {
     "FIX": {"target": 1800.0, "own": 96.5, "earn": "2026-05-01"},
     "ATRO": {"target": 95.0, "own": 82.1, "earn": "2026-04-28"},
@@ -23,24 +23,10 @@ team_intel = {
 def fetch_scout_data(tickers):
     all_syms = tickers + ["SPY"]
     try:
-        data = yf.download(all_syms, period="1y", interval="1d", group_by='ticker')
-        return data
-    except Exception: return None
+        return yf.download(all_syms, period="1y", interval="1d", group_by='ticker')
+    except: return None
 
-# FIX: Added .get() to prevent 'KeyError' crashes
-def get_sentiment(news_list):
-    bullish = ["upgrade", "beat", "growth", "buy", "surge", "positive"]
-    bearish = ["downgrade", "miss", "negative", "loss", "sell", "drop"]
-    score = 0
-    if not news_list: return "NEUTRAL"
-    for item in news_list:
-        # Using .get() ensures the app won't crash if a field is missing
-        text = item.get('title', '').lower()
-        score += sum(1 for w in bullish if w in text)
-        score -= sum(1 for w in bearish if w in text)
-    return "BULLISH" if score > 0 else "BEARISH" if score < 0 else "NEUTRAL"
-
-# --- 2. COMMAND ENGINE ---
+# --- 2. ENGINE ---
 st.title("🚀 Alpha Scout: Strategic Commander")
 tickers = list(team_intel.keys())
 data = fetch_scout_data(tickers)
@@ -52,58 +38,66 @@ if data is not None:
         try:
             df = data[t].dropna()
             price = df['Close'].iloc[-1]
-            # Accumulation & Relative Strength
-            acc = df['Volume'].iloc[-1] > (df['Volume'].rolling(20).mean().iloc[-1] * 1.2)
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             days = (datetime.strptime(team_intel[t]['earn'], "%Y-%m-%d") - datetime.now()).days
-            stats.append({"ticker": t, "price": price, "rs": rs, "acc": acc, "days": days})
-        except Exception: continue
+            stats.append({"ticker": t, "price": price, "rs": rs, "days": days})
+        except: continue
 
+    # LEADERBOARD
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     cols = st.columns(len(sorted_stats))
     for i, s in enumerate(sorted_stats):
         with cols[i]:
             st.metric(s['ticker'], f"${s['price']:.2f}", f"{s['rs']*100:+.1f}% RS")
-            if s['acc']: st.success("💎 ACCUM")
-            if s['days'] < 7: st.warning("⚠️ EARN")
 
     st.divider()
 
     # --- 3. TACTICAL ANALYSIS ---
     sel = st.selectbox("Strategic Selection", [x['ticker'] for x in sorted_stats])
-    tab1, tab2, tab3 = st.tabs(["📊 Technicals", "💰 Institutional", "📰 Sentiment"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🔗 Correlation", "💰 Institutional"])
 
     with tab1:
         df_sel = data[sel].dropna()
         fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
-        fig.add_hline(y=team_intel[sel]['target'], line_dash="dot", line_color="white")
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=400)
         st.plotly_chart(fig, use_container_width=True)
 
     with tab2:
-        intel = team_intel[sel]
-        try:
-            info = yf.Ticker(sel).info
-            pe = info.get('trailingPE', 0.0)
-            margin = info.get('profitMargins', 0.0) * 100
-        except Exception: pe, margin = 0.0, 0.0
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Inst. Own", f"{intel['own']}%")
-        c2.metric("P/E Ratio", f"{pe:.1f}x", delta="DANGER" if pe > 50 else "OK", delta_color="inverse")
-        c3.metric("Net Margin", f"{margin:.1f}%")
+        st.subheader(f"Volatility Protection for {sel}")
+        df_r = data[sel].dropna()
+        # Calculate ATR (14-day)
+        high_low = df_r['High'] - df_r['Low']
+        high_cp = (df_r['High'] - df_r['Close'].shift()).abs()
+        low_cp = (df_r['Low'] - df_r['Close'].shift()).abs()
+        atr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1).rolling(14).mean().iloc[-1]
+        
+        curr_p = df_r['Close'].iloc[-1]
+        t_stop = curr_p - (atr * 2.5) # 2.5x ATR is the pro standard
+        
+        c1, c2 = st.columns(2)
+        c1.metric("ATR Volatility", f"${atr:.2f}")
+        c2.metric("Trailing Stop", f"${t_stop:.2f}", delta=f"${curr_p - t_stop:.2f} Buffer")
+        
+        if curr_p < t_stop: st.error("🚨 EXIT ALERT: Price has breached the volatility floor.")
+        else: st.success("✅ STATUS: Trend is stable. Holding above volatility floor.")
 
     with tab3:
-        try:
-            raw_news = yf.Ticker(sel).news
-            sent = get_sentiment(raw_news)
-            st.metric("Headlines Score", sent)
-            for n in raw_news[:3]:
-                # Safe link check
-                t_title = n.get('title', 'No Title Available')
-                t_link = n.get('link', '#')
-                st.write(f"**{t_title}**")
-                st.write(f"[Source]({t_link})")
-                st.divider()
-        except Exception: st.info("News feed currently unavailable.")
+        st.subheader("Portfolio Correlation Matrix")
+        # Build correlation table
+        corr_df = pd.DataFrame()
+        for t in tickers:
+            corr_df[t] = data[t]['Close'].pct_change()
+        
+        matrix = corr_df.corr()
+        fig_corr = px.imshow(matrix, text_auto=True, color_continuous_scale='RdBu_r', aspect="auto")
+        fig_corr.update_layout(template="plotly_dark")
+        st.plotly_chart(fig_corr, use_container_width=True)
+        st.info("💡 High Correlation (>0.7): Stocks move together. Low Correlation (<0.3): Good Diversification.")
+
+    with tab4:
+        intel = team_intel[sel]
+        st.metric("Institutional Ownership", f"{intel['own']}%")
+        st.progress(min(intel['own']/100, 1.0))
+
 else:
-    st.error("📡 Sync Issue: Refresh in 2m.")
+    st.error("Rate limit active. Refresh in 2m.")
