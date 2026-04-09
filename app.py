@@ -7,17 +7,16 @@ import requests
 # --- 1. SETTINGS & MOBILE CSS ---
 st.set_page_config(page_title="Alpha Scout", layout="wide")
 
-# This CSS forces the 'delta' (performance %) to stay to the right of the price
+# CSS to force performance % (delta) to the right of the price
 st.markdown("""
     <style>
-    [data-testid="stMetricValue"] { font-size: 24px !important; }
+    [data-testid="stMetricValue"] { font-size: 24px !important; display: inline-block; }
     [data-testid="stMetricDelta"] { 
-        position: absolute; 
-        right: 10px; 
-        top: 35px; 
+        display: inline-block;
+        margin-left: 15px !important;
     }
     div[data-testid="column"] { 
-        padding: 10px; 
+        padding: 12px; 
         border-bottom: 1px solid #333; 
     }
     </style>
@@ -25,9 +24,10 @@ st.markdown("""
 
 FINNHUB_KEY = "d7c0uh1r01quh9fc4hegd7c0uh1r01quh9fc4hf0"
 
+# PBRA removed to clear download errors and 'nan' displays
 team_intel = {
     "FIX": 1800.0, "ATRO": 95.0, "CENX": 86.0, "GEV": 1050.0,
-    "TPL": 639.0, "CIEN": 430.0, "STX": 620.0, "PBRA": 16.2
+    "TPL": 639.0, "CIEN": 430.0, "STX": 620.0
 }
 
 @st.cache_data(ttl=600)
@@ -65,17 +65,17 @@ if all_data is not None:
             price = df['Close'].iloc[-1]
             prev_close = df['Close'].iloc[-2]
             day_pct = ((price - prev_close) / prev_close) * 100
+            # RS Calculation vs S&P 500
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             
-            # Hide PBRA or others if they return 'nan' prices
             if not pd.isna(price) and price > 0:
                 stats.append({"ticker": t, "price": price, "rs": rs, "daily": day_pct})
         except: continue
 
-    # Sorted Leaderboard (Relative Strength)
+    # Sorted Leaderboard by Relative Strength
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     
-    # Responsive Grid: 2 per row
+    # 2-Column Grid for better mobile visibility
     rows = [sorted_stats[i:i + 2] for i in range(0, len(sorted_stats), 2)]
     for row in rows:
         cols = st.columns(2)
@@ -94,23 +94,26 @@ if all_data is not None:
         df_sel = all_data[sel].dropna()
         fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], 
                         high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=400)
+        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=400, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
         df_r = all_data[sel].dropna()
+        # ATR-based Trailing Stop calculation
         atr = (df_r['High'] - df_r['Low']).rolling(14).mean().iloc[-1]
         t_stop = df_r['Close'].iloc[-1] - (atr * 2.5)
-        st.metric("ATR Volatility", f"${atr:.2f}")
-        st.metric("Trailing Stop", f"${t_stop:.2f}", delta=f"${df_r['Close'].iloc[-1]-t_stop:.2f} Buffer")
+        
+        c1, c2 = st.columns(2)
+        c1.metric("ATR Volatility", f"${atr:.2f}")
+        c2.metric("Trailing Stop", f"${t_stop:.2f}", delta=f"${df_r['Close'].iloc[-1]-t_stop:.2f} Buffer")
 
     with t3:
         st.subheader("Insider Form 4 Activity")
         insider_df = fetch_insiders(sel)
         if not insider_df.empty:
-            # Fixed the unclosed bracket issue from the logs
-            cols_to_show = [c for c in ['transactionDate', 'name', 'share', 'change'] if c in insider_df.columns]
-            st.dataframe(insider_df[cols_to_show], use_container_width=True)
+            # Fixed unclosed parenthesis/bracket error
+            valid_cols = [c for c in ['transactionDate', 'name', 'share', 'change'] if c in insider_df.columns]
+            st.dataframe(insider_df[valid_cols], use_container_width=True)
         else:
             st.info("No recent insider data found.")
 
