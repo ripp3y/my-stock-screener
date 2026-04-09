@@ -35,7 +35,6 @@ if all_data is not None:
             stats.append({"ticker": t, "price": p, "rs": rs, "daily": ((p-prev)/prev)*100})
         except: continue
 
-    # Leaderboard
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     cols = st.columns(2)
     for i, s in enumerate(sorted_stats):
@@ -51,7 +50,7 @@ if all_data is not None:
     t1, t2 = st.tabs(["📊 Technicals", "🛡️ Risk Scout"])
 
     with t1:
-        # Candlestick Logic
+        # CANDLESTICK WITH AUTO-SCALE
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index,
             open=df_sel['Open'],
@@ -61,28 +60,30 @@ if all_data is not None:
             name=sel
         )])
         
-        # Mobile-optimized chart layout
+        # Fixing the "Jammed" look
         fig.update_layout(
             template="plotly_dark",
             xaxis_rangeslider_visible=False,
-            height=400,
+            height=500, # Increased height for mobile
             margin=dict(l=10, r=10, t=30, b=10),
-            yaxis_title="Price ($)"
+            yaxis=dict(
+                title="Price ($)",
+                fixedrange=False, # Allows you to pinch-zoom the price scale
+                autorange=True   # Forces chart to fit the current candles
+            )
         )
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # Risk Scout Calculations
         high_low = df_sel['High'] - df_sel['Low']
         high_cp = (df_sel['High'] - df_sel['Close'].shift()).abs()
         low_cp = (df_sel['Low'] - df_sel['Close'].shift()).abs()
         tr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1)
         atr = tr.rolling(14).mean().iloc[-1]
-        
         curr_p = df_sel['Close'].iloc[-1]
         t_stop = curr_p - (atr * 2.5)
         
-        st.metric("ATR Volatility", f"${atr:.2f}", help="Daily movement range.")
+        st.metric("ATR Volatility", f"${atr:.2f}")
         st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${curr_p - t_stop:.2f} Buffer")
 
 else:
