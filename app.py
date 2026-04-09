@@ -86,6 +86,24 @@ if data is not None:
             pe = info.get('trailingPE', 0.0)
             margin = info.get('profitMargins', 0.0) * 100
         except Exception: pe, margin = 0.0, 0.0
+            # --- ADD THIS TO YOUR TACTICAL ANALYSIS (TAB 3 - NEWS) ---
+def get_sentiment(news_list):
+    bullish_words = ["upgrade", "beat", "positive", "growth", "buy", "surge"]
+    bearish_words = ["downgrade", "miss", "negative", "loss", "sell", "drop"]
+    
+    score = 0
+    for item in news_list:
+        text = item['title'].lower()
+        score += sum(1 for word in bullish_words if word in text)
+        score -= sum(1 for word in bearish_words if word in text)
+    
+    return "BULLISH" if score > 0 else "BEARISH" if score < 0 else "NEUTRAL"
+
+# Inside Tab 3
+news = yf.Ticker(sel).news
+sent = get_sentiment(news)
+st.metric("News Sentiment", sent, delta="STRENGTH" if sent == "BULLISH" else "CAUTION")
+
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Inst. Own", f"{intel['own']}%")
