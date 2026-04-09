@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import plotly.graph_objects as go
 
-# --- CONFIG & TEAM ---
+# --- CONFIG ---
 st.set_page_config(page_title="Alpha Scout", layout="wide")
 
 team_intel = {
@@ -18,7 +19,7 @@ def fetch_scout_data(tickers):
     except:
         return None
 
-# --- CORE ENGINE ---
+# --- ENGINE ---
 all_data = fetch_scout_data(list(team_intel.keys()))
 
 if all_data is not None:
@@ -30,12 +31,11 @@ if all_data is not None:
             df = all_data[t].dropna()
             p = df['Close'].iloc[-1]
             prev = df['Close'].iloc[-2]
-            # RS Calculation vs S&P 500
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             stats.append({"ticker": t, "price": p, "rs": rs, "daily": ((p-prev)/prev)*100})
         except: continue
 
-    # Ranked Leaderboard
+    # Leaderboard
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     cols = st.columns(2)
     for i, s in enumerate(sorted_stats):
@@ -44,33 +44,46 @@ if all_data is not None:
 
     st.divider()
 
-    # --- THE RISK SCOUT ENGINE ---
-    sel = st.selectbox("Select Target for Analysis", [x['ticker'] for x in sorted_stats])
-    
-    # Isolate data for selected stock
+    # --- ANALYSIS HUB ---
+    sel = st.selectbox("Select Target", [x['ticker'] for x in sorted_stats])
     df_sel = all_data[sel].dropna()
     
-    # ATR Calculation (Volatilty Measurement)
-    # Using the standard 14-day True Range method
-    high_low = df_sel['High'] - df_sel['Low']
-    high_cp = (df_sel['High'] - df_sel['Close'].shift()).abs()
-    low_cp = (df_sel['Low'] - df_sel['Close'].shift()).abs()
-    tr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1)
-    atr = tr.rolling(14).mean().iloc[-1]
-    
-    # Trailing Stop: Price minus (2.5 * ATR)
-    curr_p = df_sel['Close'].iloc[-1]
-    t_stop = curr_p - (atr * 2.5)
-    buffer = curr_p - t_stop
+    t1, t2 = st.tabs(["📊 Technicals", "🛡️ Risk Scout"])
 
-    # Display Metrics with Help Tooltips
-    st.subheader(f"🛡️ Risk Assessment: {sel}")
-    st.metric("ATR Volatility", f"${atr:.2f}", 
-              help="Average daily price swing. High ATR indicates a volatile 'wild' stock.")
-    
-    st.metric("Volatility Stop", f"${t_stop:.2f}", 
-              delta=f"${buffer:.2f} Buffer",
-              help="The logical trend floor. If price breaks this, the trend is likely broken.")
+    with t1:
+        # Candlestick Logic
+        fig = go.Figure(data=[go.Candlestick(
+            x=df_sel.index,
+            open=df_sel['Open'],
+            high=df_sel['High'],
+            low=df_sel['Low'],
+            close=df_sel['Close'],
+            name=sel
+        )])
+        
+        # Mobile-optimized chart layout
+        fig.update_layout(
+            template="plotly_dark",
+            xaxis_rangeslider_visible=False,
+            height=400,
+            margin=dict(l=10, r=10, t=30, b=10),
+            yaxis_title="Price ($)"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with t2:
+        # Risk Scout Calculations
+        high_low = df_sel['High'] - df_sel['Low']
+        high_cp = (df_sel['High'] - df_sel['Close'].shift()).abs()
+        low_cp = (df_sel['Low'] - df_sel['Close'].shift()).abs()
+        tr = pd.concat([high_low, high_cp, low_cp], axis=1).max(axis=1)
+        atr = tr.rolling(14).mean().iloc[-1]
+        
+        curr_p = df_sel['Close'].iloc[-1]
+        t_stop = curr_p - (atr * 2.5)
+        
+        st.metric("ATR Volatility", f"${atr:.2f}", help="Daily movement range.")
+        st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${curr_p - t_stop:.2f} Buffer")
 
 else:
-    st.error("📡 Sync Issue: Reconnect to data feed.")
+    st.error("📡 Sync Issue.")
