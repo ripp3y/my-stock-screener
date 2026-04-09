@@ -3,16 +3,17 @@ import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
 
-# --- CONFIG & DATA ---
-st.set_page_config(page_title="Alpha Scout", layout="wide")
+# --- CONFIG ---
+st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
+# Your Core Portfolio Targets
 team_intel = {
     "FIX": 1800.0, "ATRO": 95.0, "CENX": 86.0, "GEV": 1050.0,
     "TPL": 639.0, "CIEN": 430.0, "STX": 620.0
 }
 
 @st.cache_data(ttl=600)
-def fetch_scout_data(tickers):
+def fetch_terminal_data(tickers):
     syms = tickers + ["SPY"]
     try:
         return yf.download(syms, period="1y", group_by='ticker').ffill()
@@ -20,7 +21,7 @@ def fetch_scout_data(tickers):
         return None
 
 # --- ENGINE ---
-all_data = fetch_scout_data(list(team_intel.keys()))
+all_data = fetch_terminal_data(list(team_intel.keys()))
 
 if all_data is not None:
     stats = []
@@ -31,14 +32,15 @@ if all_data is not None:
             df = all_data[t].dropna()
             p = df['Close'].iloc[-1]
             prev = df['Close'].iloc[-2]
-            # RS Rank: Relative Strength vs SPY
+            # RS Calculation: Performance vs SPY benchmark
             rs = (df['Close'].pct_change(20).iloc[-1]) - (spy_df['Close'].pct_change(20).iloc[-1])
             stats.append({"ticker": t, "price": p, "rs": rs, "daily": ((p-prev)/prev)*100})
         except: continue
 
+    # Rank by RS for the Leaderboard
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     
-    # Dashboard Leaderboard
+    # 2-Column Mobile Layout
     cols = st.columns(2)
     for i, s in enumerate(sorted_stats):
         with cols[i % 2]:
@@ -54,7 +56,7 @@ if all_data is not None:
     t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders"])
 
     with t1:
-        # PRO-VIEW HORIZONTAL CHART
+        # HORIZONTAL CHART (Height set to 300 for mobile clarity)
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
             low=df_sel['Low'], close=df_sel['Close'], name=sel
@@ -68,27 +70,27 @@ if all_data is not None:
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # ROBUST RISK LOGIC
-        cp = df_sel['Close'].iloc[-1]
+        # CLEAN ATR CALCULATION
+        curr_p = df_sel['Close'].iloc[-1]
         hi_lo = df_sel['High'] - df_sel['Low']
-        # Simplified ATR calculation to avoid syntax errors on mobile
-        tr_calc = pd.concat([hi_lo, (df_sel['High']-df_sel['Close'].shift()).abs()], axis=1).max(axis=1)
-        atr_14 = tr_calc.rolling(14).mean().iloc[-1]
-        t_stop = cp - (atr_14 * 2.5)
+        # Simplified one-line TR for mobile stability
+        tr = pd.concat([hi_lo, (df_sel['High']-df_sel['Close'].shift()).abs()], axis=1).max(axis=1)
+        atr = tr.rolling(14).mean().iloc[-1]
+        t_stop = curr_p - (atr * 2.5)
         
-        st.metric("ATR Volatility", f"${atr_14:.2f}")
-        st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${cp - t_stop:.2f} Buffer")
+        st.metric("ATR Volatility", f"${atr:.2f}")
+        st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${curr_p - t_stop:.2f} Buffer")
 
     with t3:
-        # INSIDER ROSTER
+        # INSIDER FILINGS
         try:
-            insider_data = ticker_obj.insider_transactions
-            if insider_data is not None and not insider_data.empty:
-                st.dataframe(insider_data[['Start Date', 'Insider', 'Transaction', 'Shares']].head(10), hide_index=True)
+            insiders = ticker_obj.insider_transactions
+            if insiders is not None and not insiders.empty:
+                st.dataframe(insiders[['Start Date', 'Insider', 'Transaction', 'Shares']].head(10), hide_index=True)
             else:
-                st.info("No recent insider activity reported.")
+                st.info("No recent insider Form 4s.")
         except:
-            st.error("Live feed sync failed.")
+            st.error("Insider data source timed out.")
 
 else:
-    st.error("📡 Market Data Sync Issue.")
+    st.error("📡 Connection to data stream lost.")
