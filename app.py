@@ -60,12 +60,24 @@ if all_data is not None:
             name=sel
         )])
         
-        # Adjusting for a flatter, horizontal look
+        # Fixing the "Jammed" look by reducing height and opening width
         fig.update_layout(
             template="plotly_dark",
             xaxis_rangeslider_visible=False,
-            height=320, # Reduced height to "flatten" the candles
-            margin=dict(l=5, r=5, t=10, b=10), # Tight margins to maximize width
+            height=280, # DROPPED TO 280: This forces the "flatter" horizontal stretch
+            margin=dict(l=5, r=5, t=10, b=10),
             yaxis=dict(
                 fixedrange=False,
-                side
+                side="right",
+                showgrid=True,
+                gridcolor="#333"
+            ),
+            xaxis=dict(showgrid=False)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with t2:
+        # Risk Scout metrics
+        high_low = df_sel['High'] - df_sel['Low']
+        tr = pd.concat([high_low, (df_sel['High']-df_sel['Close'].shift()).abs(), (df_sel['Low']-df_sel['Close'].shift()).abs()], axis=1).max(axis=1)
+        atr
