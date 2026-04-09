@@ -4,19 +4,21 @@ import yfinance as yf
 import plotly.graph_objects as go
 import requests
 
-# --- 1. CONFIG & TOOLTIP DEFINITIONS ---
+# --- 1. SETTINGS & STYLING ---
 st.set_page_config(page_title="Alpha Scout", layout="wide")
 
-# Tooltip content for easy reference
-TIPS = {
-    "ATR": "Average True Range: The average daily movement. High ATR means higher 'noise'.",
-    "STOP": "Volatility floor. If price breaks this, the current trend is technically compromised.",
-    "RS": "Relative Strength: Performance of this stock vs the S&P 500 over the last 20 sessions."
-}
+# Simplied CSS to prevent mobile stacking issues
+st.markdown("""
+    <style>
+    [data-testid="stMetricValue"] { font-size: 26px !important; }
+    div.stButton > button { width: 100%; border-radius: 5px; }
+    .reportview-container .main .block-container { padding-top: 1rem; }
+    </style>
+    """, unsafe_allow_html=True)
 
 FINNHUB_KEY = "d7c0uh1r01quh9fc4hegd7c0uh1r01quh9fc4hf0"
 
-# Cleaned list: PBRA removed to fix download failures
+# PBRA removed to fix download errors
 team_intel = {
     "FIX": 1800.0, "ATRO": 95.0, "CENX": 86.0, "GEV": 1050.0,
     "TPL": 639.0, "CIEN": 430.0, "STX": 620.0
@@ -40,7 +42,7 @@ def fetch_insiders(symbol):
     except:
         return pd.DataFrame()
 
-# --- 2. THE COMMAND CENTER ---
+# --- 2. DATA ENGINE ---
 st.title("🚀 Alpha Scout: Strategic Commander")
 tickers = list(team_intel.keys())
 all_data = fetch_scout_data(tickers)
@@ -63,13 +65,56 @@ if all_data is not None:
                 stats.append({"ticker": t, "price": p, "rs": rs, "daily": day_pct})
         except: continue
 
-    # Rank by RS score
+    # Leaderboard by Relative Strength
     sorted_stats = sorted(stats, key=lambda x: x['rs'], reverse=True)
     
-    # FORCED HORIZONTAL LAYOUT (Markdown Table Hack)
-    for s in sorted_stats:
-        color = "🟢" if s['daily'] >= 0 else "🔴"
-        st.markdown(f"""
-        **{s['ticker']}** | Price | Day Performance | RS Score |
-        | :--- | :--- | :--- |
-        | **${s['
+    # Grid Layout: Reliable 2-column display for mobile
+    rows = [sorted_stats[i:i + 2] for i in range(0, len(sorted_stats), 2)]
+    for row in rows:
+        cols = st.columns(2)
+        for i, s in enumerate(row):
+            with cols[i]:
+                # Combined metric for better readability
+                st.metric(
+                    label=f"{s['ticker']} (RS: {s['rs']*100:+.1f}%)", 
+                    value=f"${s['price']:.2f}", 
+                    delta=f"{s['daily']:+.2f}%"
+                )
+
+    st.divider()
+
+    # --- 3. TARGET DRILL-DOWN ---
+    sel = st.selectbox("Select Target", [x['ticker'] for x in sorted_stats])
+    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders"])
+
+    with t1:
+        df_sel = all_data[sel].dropna()
+        fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], 
+                        high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
+        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with t2:
+        df_r = all_data[sel].dropna()
+        atr = (df_r['High'] - df_r['Low']).rolling(14).mean().iloc[-1]
+        t_stop = df_r['Close'].iloc[-1] - (atr * 2.5)
+        
+        # Tooltips added for better understanding of risk metrics
+        st.metric("ATR Volatility", f"${atr:.2f}", help="Daily movement 'noise' range.")
+        st.metric("Trailing Stop", f"${t_stop:.2f}", 
+                  delta=f"${df_r['Close'].iloc[-1]-t_stop:.2f} Buffer",
+                  help="Volatility-adjusted floor to protect gains.")
+
+    with t3:
+        st.subheader("Insider Form 4 Tracker")
+        insider_df = fetch_insiders(sel)
+        if not insider_df.empty:
+            view_cols = [c for c in ['transactionDate', 'name', 'share', 'change'] if c in insider_df.columns]
+            df_display = insider_df[view_cols]
+            # FIXED: use_container_width placed correctly
+            st.dataframe(df_display, use_container_width=True)
+        else:
+            st.info("No recent insider filings.")
+
+else:
+    st.error("📡 Sync Issue: Connection lost.")
