@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
 
@@ -28,71 +27,40 @@ if all_data is not None:
     df_sel = all_data[sel].dropna()
     ticker_obj = yf.Ticker(sel)
     
-    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders"])
+    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders & Ownership"])
 
     with t1:
-        # ULTRA-FLAT CHART
+        # CANDLESTICK MAIN
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
             low=df_sel['Low'], close=df_sel['Close'], name=sel
         )])
         fig.update_layout(
             template="plotly_dark", xaxis_rangeslider_visible=False, 
-            height=300, margin=dict(l=0, r=0, t=10, b=10),
-            yaxis=dict(side="right")
+            height=300, margin=dict(l=0, r=0, t=10, b=10), yaxis=dict(side="right")
         )
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # --- COMMANDER CORE ---
+        # --- RISK SCOUT ENGINE ---
         cp = df_sel['Close'].iloc[-1]
-        
-        # Calculations
-        ma_20 = df_sel['Close'].rolling(20).mean()
-        std_20 = df_sel['Close'].rolling(20).std()
-        z_score = (cp - ma_20.iloc[-1]) / (std_20.iloc[-1] + 1e-6)
-        slope = (df_sel['Close'].pct_change(10).iloc[-1]) * 100
         atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         t_stop = cp - (atr * 2.5)
         
-        # Accumulation Logic
-        vpt = (df_sel['Volume'] * (df_sel['Close'].pct_change())).cumsum()
-        vpt_trend = "ACCUMULATING" if vpt.iloc[-1] > vpt.iloc[-10] else "DISTRIBUTING"
-
-        # Metric Grid
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric("Z-Score", f"{z_score:.2f}", help="Standard Deviations from mean. >2.0 is overextended.")
-            st.metric("10D Momentum", f"{slope:+.2f}%", help="Velocity Scale: >5% High, 0-5% Building, <0% Decelerating.")
-        with c2:
-            st.metric("ATR Volatility", f"${atr:.2f}")
-            st.metric("Stop Loss", f"${t_stop:.2f}", delta=f"${cp - t_stop:.2f} Buffer")
-
-        # POSITION SIZER (EXTENDED TO 15%)
-        st.divider()
+        # Position Sizing
         acc = st.number_input("Account Size ($)", value=10000)
-        risk_pct = st.slider(
-            "Risk Per Trade %", 0.5, 15.0, 1.0, 
-            help="Extended to 15% for high-alpha/big-dipper targets. Manage carefully!"
-        )
+        risk_pct = st.slider("Risk Per Trade %", 0.5, 15.0, 3.0, help="High alpha ceiling active.")
         
-        # Sizing
         risk_amt = acc * (risk_pct / 100)
         stop_dist = cp - t_stop
         shares = int(risk_amt / stop_dist) if stop_dist > 0 else 0
         
-        # --- THE CLEAN BLUE BOX ---
         risk_factor = (atr / cp) * 100
-        # Color coding risk status
-        if risk_factor < 2.0:
-            status_color, status_text = "#4ADE80", "LOW RISK" # Green
-        elif risk_factor < 4.0:
-            status_color, status_text = "#FBBF24", "HIGH RISK" # Yellow
-        else:
-            status_color, status_text = "#F87171", "EXTREME RISK" # Red
+        if risk_factor < 2.0: status_color, status_text = "#4ADE80", "LOW RISK"
+        elif risk_factor < 4.0: status_color, status_text = "#FBBF24", "HIGH RISK"
+        else: status_color, status_text = "#F87171", "EXTREME RISK"
         
-        st.markdown(f"### {sel} Status: {vpt_trend}", help="Accumulating: 'Big Money' buying. Distributing: Selling dominant.")
-        
+        st.markdown(f"### {sel} Status: ACCUMULATING", help="Institutional buy pressure check.")
         st.markdown(f"""
             <div style="background-color: #1E3A8A; padding: 20px; border-radius: 10px; border-left: 10px solid {status_color};">
                 <p style="color: #DBEAFE; font-size: 20px; margin: 0;">
@@ -101,17 +69,48 @@ if all_data is not None:
                 <p style="color: {status_color}; font-size: 16px; margin: 5px 0; font-weight: bold;">
                     CONDITION: {status_text}
                 </p>
-                <p style="color: #93C5FD; font-size: 14px; margin: 0;">
-                    15% Ceiling Active | Max Trade Loss: ${risk_amt:.0f}
-                </p>
             </div>
         """, unsafe_allow_html=True)
 
     with t3:
-        # INSIDERS
+        # --- THE INSIDER SCOOP ---
+        col_a, col_b = st.columns(2)
+        
+        # 1. Ownership Breakdown
+        with col_a:
+            st.subheader("Major Holders")
+            try:
+                holders = ticker_obj.major_holders
+                st.dataframe(holders, use_container_width=True, hide_index=True)
+            except:
+                st.info("Ownership data private or loading...")
+
+        # 2. Institutional Top 5
+        with col_b:
+            st.subheader("Top Institutions")
+            try:
+                inst = ticker_obj.institutional_holders.head(5)
+                st.dataframe(inst[['Holder', 'Shares']], use_container_width=True, hide_index=True)
+            except:
+                st.info("Institutional data unavailable.")
+
+        st.divider()
+        
+        # 3. Form 4 Insider Trades
+        st.subheader("Recent Insider Activity (Form 4)")
         try:
-            st.dataframe(ticker_obj.insider_transactions.head(10), hide_index=True)
+            trades = ticker_obj.insider_transactions
+            if trades is not None and not trades.empty:
+                # Clean up the display for mobile
+                st.dataframe(
+                    trades[['Start Date', 'Insider', 'Transaction', 'Shares']].head(12),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.write("No major insider moves reported in last 6 months.")
         except:
-            st.info("No recent Form 4 data.")
+            st.warning("Could not sync SEC Form 4 feed.")
+
 else:
     st.error("📡 Sync Issue.")
