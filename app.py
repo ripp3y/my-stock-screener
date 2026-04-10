@@ -37,7 +37,10 @@ if all_data is not None:
             x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
             low=df_sel['Low'], close=df_sel['Close'], name=sel
         )])
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=350, margin=dict(l=5,r=5,t=10,b=10))
+        fig.update_layout(
+            template="plotly_dark", xaxis_rangeslider_visible=False, 
+            height=350, margin=dict(l=5,r=5,t=10,b=10)
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
@@ -64,11 +67,16 @@ if all_data is not None:
         
         c1, c2 = st.columns(2)
         with c1:
-            st.metric("Z-Score", f"{z_score:.2f}")
-            st.metric("10D Momentum", f"{slope:+.2f}%")
+            st.metric("Z-Score", f"{z_score:.2f}", help="Standard Deviations from 20D Mean. Above 2.0 is overextended.")
+            # NEW TOOLTIP SCALE
+            st.metric(
+                "10D Momentum", 
+                f"{slope:+.2f}%", 
+                help=f"Velocity Scale: \n > 5%: High Velocity \n 0-5%: Building \n < 0%: Decelerating"
+            )
         with c2:
             st.metric("ATR Volatility", f"${atr:.2f}")
-            st.metric("Volatility Stop", f"${t_stop:.2f}")
+            st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${cp - t_stop:.2f} Buffer")
 
         # Position Sizer
         st.divider()
@@ -83,7 +91,8 @@ if all_data is not None:
                 <h3 style="color: white; margin: 0;">{sel}: {vpt_trend}</h3>
                 <p style="color: #DBEAFE; margin: 5px 0;">Risk Factor: <b>{rf:.2f}%</b> | Shares: <b>{shares}</b></p>
                 <p style="color: #93C5FD; font-size: 14px; margin: 0;">
-                    Trend Velocity is <b>{"ACCELERATING" if slope > 0 else "DECELERATING"}</b> at {slope:.1f}%.
+                    Trend Velocity is <b>{"ACCELERATING" if slope > 0 else "DECELERATING"}</b>. 
+                    Price is <b>{z_score:.2f} SD</b> from its mean.
                 </p>
             </div>
         """, unsafe_allow_html=True)
