@@ -44,10 +44,10 @@ if all_data is not None:
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # --- ENHANCED RISK SCOUT ---
+        # --- MOMENTUM & RISK SUITE ---
         cp = df_sel['Close'].iloc[-1]
         
-        # Stats Logic
+        # Calculations
         ma_20 = df_sel['Close'].rolling(20).mean()
         std_20 = df_sel['Close'].rolling(20).std()
         z_score = (cp - ma_20.iloc[-1]) / (std_20.iloc[-1] + 1e-6)
@@ -55,45 +55,46 @@ if all_data is not None:
         atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         t_stop = cp - (atr * 2.5)
         
-        # VPT Accumulation Logic
+        # Accumulation Logic
         vpt = (df_sel['Volume'] * (df_sel['Close'].pct_change())).cumsum()
         vpt_trend = "ACCUMULATING" if vpt.iloc[-1] > vpt.iloc[-10] else "DISTRIBUTING"
 
         c1, c2 = st.columns(2)
         with c1:
-            st.metric("Z-Score", f"{z_score:.2f}", help="Standard Deviations from mean. >2.0 is overextended.")
+            st.metric("Z-Score", f"{z_score:.2f}", help="Standard Deviations from mean. Above 2.0 is overextended.")
             st.metric("10D Momentum", f"{slope:+.2f}%", help="Velocity Scale: >5% High, 0-5% Building, <0% Decelerating.")
         with c2:
-            st.metric("ATR Volatility", f"${atr:.2f}")
+            st.metric("ATR Volatility", f"${atr:.2f}", help="Average True Range (14D). Measures typical daily move.")
             st.metric("Stop Loss", f"${t_stop:.2f}", delta=f"${cp - t_stop:.2f} Buffer")
 
-        # POSITION SIZER WITH TOOLTIP
+        # POSITION SIZER
         st.divider()
         acc = st.number_input("Account Size ($)", value=10000)
         risk_pct = st.slider(
             "Risk Per Trade %", 0.5, 3.0, 1.0, 
-            help="The maximum % of your total account you are willing to lose if the Stop Loss is hit."
+            help="Max % of account to lose if Stop Loss is hit."
         )
         
-        # Calc Shares
+        # Share Calc
         risk_amt = acc * (risk_pct / 100)
         stop_dist = cp - t_stop
         shares = int(risk_amt / stop_dist) if stop_dist > 0 else 0
         
-        # THE BIG BLUE FOOTER
+        # THE BIG BLUE FOOTER (Proper Tooltips via Markdown)
         risk_factor = (atr / cp) * 100
         risk_status = "STABLE" if risk_factor < 3 else "VOLATILE" if risk_factor < 5 else "EXTREME"
         
         st.markdown(f"""
             <div style="background-color: #1E3A8A; padding: 20px; border-radius: 10px; border-left: 5px solid #3B82F6;">
-                <h3 style="color: white; margin: 0;">
-                    {sel} Status: {vpt_trend} <span title="Accumulating: Buying pressure increasing. Distributing: Selling pressure increasing.">❓</span>
+                <h3 style="color: white; margin: 0;" title="Accumulating: Big money is buying. Distributing: Big money is selling.">
+                    {sel} Status: {vpt_trend}
                 </h3>
                 <p style="color: #DBEAFE; font-size: 18px; margin: 5px 0;">
-                    <b>Risk Factor:</b> {risk_factor:.2f}% | <b>Shares:</b> {shares}
+                    <span title="The percentage of the stock price represented by one daily ATR."><b>Risk Factor:</b></span> {risk_factor:.2f}% | 
+                    <span title="Suggested share count based on your risk profile and stop loss."><b>Shares:</b></span> {shares}
                 </p>
                 <p style="color: #93C5FD; font-size: 14px; margin: 0;">
-                    Condition: <b>{risk_status}</b>. Max risk per trade: <b>${risk_amt:.0f}</b>.
+                    Condition: <b>{risk_status}</b>. Price is <b>{z_score:.2f} SD</b> from mean.
                 </p>
             </div>
         """, unsafe_allow_html=True)
