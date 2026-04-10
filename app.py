@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
 
@@ -14,7 +13,7 @@ team_intel = {
 
 @st.cache_data(ttl=600)
 def fetch_terminal_data(tickers):
-    syms = tickers + ["SPY", "QQQ"]
+    syms = tickers + ["SPY"]
     try:
         return yf.download(syms, period="2y", group_by='ticker').ffill()
     except:
@@ -24,61 +23,56 @@ def fetch_terminal_data(tickers):
 all_data = fetch_terminal_data(list(team_intel.keys()))
 
 if all_data is not None:
-    # --- ANALYSIS HUB ---
+    # Target Selector
     sel = st.selectbox("Select Target", list(team_intel.keys()))
     df_sel = all_data[sel].dropna()
     ticker_obj = yf.Ticker(sel)
     
-    # 3-Tab System for maximum focus
+    # 3-Tab System
     t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders"])
 
     with t1:
-        # FLAT CHART RATIO
+        # --- THE FLAT CHART (Height set to 300 for maximum flattening) ---
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
             low=df_sel['Low'], close=df_sel['Close'], name=sel
         )])
+        
         fig.update_layout(
-            template="plotly_dark", xaxis_rangeslider_visible=False, 
-            height=350, margin=dict(l=5,r=5,t=10,b=10)
+            template="plotly_dark",
+            xaxis_rangeslider_visible=False, 
+            height=300, # Ultra-flat ratio
+            margin=dict(l=0, r=0, t=10, b=10), # Zero side margins
+            yaxis=dict(side="right") # Price on right for better visibility
         )
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # --- MOMENTUM & RISK SUITE ---
+        # --- RISK & MOMENTUM COMMAND ---
         cp = df_sel['Close'].iloc[-1]
         
-        # Z-Score (Mean Reversion)
+        # Calculations
         ma_20 = df_sel['Close'].rolling(20).mean()
         std_20 = df_sel['Close'].rolling(20).std()
         z_score = (cp - ma_20.iloc[-1]) / (std_20.iloc[-1] + 1e-6)
-        
-        # VPT: Volume Price Trend
-        vpt = (df_sel['Volume'] * (df_sel['Close'].pct_change())).cumsum()
-        vpt_trend = "ACCUMULATING" if vpt.iloc[-1] > vpt.iloc[-10] else "DISTRIBUTING"
-        
-        # Momentum Slope
         slope = (df_sel['Close'].pct_change(10).iloc[-1]) * 100
-        
-        # Standard Risk Metrics
-        hi_lo = df_sel['High'] - df_sel['Low']
-        tr = pd.concat([hi_lo, (df_sel['High']-df_sel['Close'].shift()).abs()], axis=1).max(axis=1)
-        atr = tr.rolling(14).mean().iloc[-1]
+        atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         t_stop = cp - (atr * 2.5)
         
+        # VPT Accumulation Logic
+        vpt = (df_sel['Volume'] * (df_sel['Close'].pct_change())).cumsum()
+        vpt_trend = "ACCUMULATING" if vpt.iloc[-1] > vpt.iloc[-10] else "DISTRIBUTING"
+
+        # Metric Grid
         c1, c2 = st.columns(2)
         with c1:
-            st.metric("Z-Score", f"{z_score:.2f}", help="Score > 2.0 = Overextended.")
-            st.metric(
-                "10D Momentum", 
-                f"{slope:+.2f}%", 
-                help="Scale: \n > +5%: High Velocity \n 0 to +5%: Building \n < 0%: Decelerating"
-            )
+            st.metric("Z-Score", f"{z_score:.2f}")
+            st.metric("10D Momentum", f"{slope:+.2f}%")
         with c2:
-            st.metric("ATR Volatility", f"${atr:.2f}")
-            st.metric("Volatility Stop", f"${t_stop:.2f}", delta=f"${cp - t_stop:.2f} Buffer")
+            st.metric("ATR Volatiltiy", f"${atr:.2f}")
+            st.metric("Stop Loss", f"${t_stop:.2f}")
 
-        # Position Sizer
+        # Position Sizing
         st.divider()
         acc = st.number_input("Account Size ($)", value=10000)
         risk = st.slider("Risk Per Trade %", 0.5, 3.0, 1.0)
@@ -88,11 +82,10 @@ if all_data is not None:
         rf = (atr / cp) * 100
         st.markdown(f"""
             <div style="background-color: #1E3A8A; padding: 20px; border-radius: 10px; border-left: 5px solid #3B82F6;">
-                <h3 style="color: white; margin: 0;">{sel}: {vpt_trend}</h3>
-                <p style="color: #DBEAFE; margin: 5px 0;">Risk Factor: <b>{rf:.2f}%</b> | Shares: <b>{shares}</b></p>
+                <h3 style="color: white; margin: 0;">{sel} Status: {vpt_trend}</h3>
+                <p style="color: #DBEAFE; margin: 5px 0;">Risk Factor: <b>{rf:.2f}%</b> | Max: <b>{shares} shares</b></p>
                 <p style="color: #93C5FD; font-size: 14px; margin: 0;">
-                    Trend Velocity is <b>{"ACCELERATING" if slope > 0 else "DECELERATING"}</b>. 
-                    Price is <b>{z_score:.2f} SD</b> from the mean ({"OVEREXTENDED" if abs(z_score) > 2 else "HEALTHY"}).
+                    Price is <b>{z_score:.2f} SD</b> from the mean ({"OVEREXTENDED" if abs(z_score) > 2 else "STABLE"}).
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -102,6 +95,6 @@ if all_data is not None:
         try:
             st.dataframe(ticker_obj.insider_transactions.head(10), hide_index=True)
         except:
-            st.info("No recent Form 4 data.")
+            st.info("No recent Form 4 data available.")
 else:
-    st.error("📡 Sync Issue.")
+    st.error("📡 Connecting to Market Data...")
