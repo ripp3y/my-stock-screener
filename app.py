@@ -4,7 +4,7 @@ import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
 
-# --- 1. CONFIG ---
+# --- 1. SETTINGS & DATA ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
 team_intel = {
@@ -20,7 +20,7 @@ def fetch_terminal_data(tickers):
     except:
         return None
 
-# --- 2. ENGINE ---
+# --- 2. THE ENGINE ---
 all_data = fetch_terminal_data(list(team_intel.keys()))
 
 if all_data is not None:
@@ -32,7 +32,7 @@ if all_data is not None:
     t1, t2, t3, t4 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🌐 Correlation", "🕵️ Insiders"])
 
     with t1:
-        # FLAT CHART RATIO
+        # FLAT CHART (Height 350)
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
             low=df_sel['Low'], close=df_sel['Close'], name=sel
@@ -44,7 +44,7 @@ if all_data is not None:
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # --- ELITE RISK & MOMENTUM SUITE ---
+        # --- COMMANDER MOMENTUM & RISK SUITE ---
         cp = df_sel['Close'].iloc[-1]
         
         # 1. Z-Score (Mean Reversion)
@@ -52,7 +52,7 @@ if all_data is not None:
         std_20 = df_sel['Close'].rolling(20).std()
         z_score = (cp - ma_20.iloc[-1]) / (std_20.iloc[-1] + 1e-6)
         
-        # 2. VPT: Volume Price Trend
+        # 2. VPT: Volume Price Trend (Accumulation Indicator)
         vpt = (df_sel['Volume'] * (df_sel['Close'].pct_change())).cumsum()
         vpt_trend = "ACCUMULATING" if vpt.iloc[-1] > vpt.iloc[-10] else "DISTRIBUTING"
         
@@ -67,12 +67,11 @@ if all_data is not None:
         
         c1, c2 = st.columns(2)
         with c1:
-            st.metric("Z-Score", f"{z_score:.2f}", help="Standard Deviations from 20D Mean. Above 2.0 is overextended.")
-            # NEW TOOLTIP SCALE
+            st.metric("Z-Score", f"{z_score:.2f}", help="Score > 2.0 = Overextended. Price is far from its 20D average.")
             st.metric(
                 "10D Momentum", 
                 f"{slope:+.2f}%", 
-                help=f"Velocity Scale: \n > 5%: High Velocity \n 0-5%: Building \n < 0%: Decelerating"
+                help="Momentum Scale: \n > +5%: High Velocity \n 0 to +5%: Building \n < 0%: Decelerating"
             )
         with c2:
             st.metric("ATR Volatility", f"${atr:.2f}")
@@ -81,10 +80,10 @@ if all_data is not None:
         # Position Sizer
         st.divider()
         acc = st.number_input("Account Size ($)", value=10000)
-        risk = st.slider("Risk %", 0.5, 3.0, 1.0)
+        risk = st.slider("Risk Per Trade %", 0.5, 3.0, 1.0)
         shares = int((acc * (risk/100)) / (cp - t_stop)) if (cp - t_stop) > 0 else 0
         
-        # BIG BLUE FOOTER
+        # THE BIG BLUE FOOTER
         rf = (atr / cp) * 100
         st.markdown(f"""
             <div style="background-color: #1E3A8A; padding: 20px; border-radius: 10px; border-left: 5px solid #3B82F6;">
@@ -92,7 +91,7 @@ if all_data is not None:
                 <p style="color: #DBEAFE; margin: 5px 0;">Risk Factor: <b>{rf:.2f}%</b> | Shares: <b>{shares}</b></p>
                 <p style="color: #93C5FD; font-size: 14px; margin: 0;">
                     Trend Velocity is <b>{"ACCELERATING" if slope > 0 else "DECELERATING"}</b>. 
-                    Price is <b>{z_score:.2f} SD</b> from its mean.
+                    Price is <b>{z_score:.2f} SD</b> from the mean ({"OVEREXTENDED" if abs(z_score) > 2 else "HEALTHY"}).
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -110,4 +109,4 @@ if all_data is not None:
         except:
             st.info("No recent Form 4 data.")
 else:
-    st.error("📡 Sync Issue.")
+    st.error("📡 Connection to data stream lost.")
