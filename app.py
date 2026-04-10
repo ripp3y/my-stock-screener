@@ -1,116 +1,68 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import plotly.graph_objects as go
 
-# --- 1. CONFIG & DATA ---
-st.set_page_config(page_title="Strategic US Terminal", layout="wide")
+# --- ENGINE ---
+def color_shares(val, type_val):
+    """Colors share counts based on buy/sell action."""
+    color = '#4ADE80' if 'Buy' in str(type_val) else '#F87171'
+    return f'color: {color}; font-weight: bold;'
 
-team_intel = {
-    "FIX": 1800.0, "ATRO": 95.0, "CENX": 86.0, "GEV": 1050.0,
-    "TPL": 639.0, "CIEN": 430.0, "STX": 620.0
-}
+# ... (Previous imports and data fetching logic remains same) ...
 
-@st.cache_data(ttl=600)
-def fetch_terminal_data(tickers):
-    syms = tickers + ["SPY"]
+with t3:
+    # 1. TOP-LEVEL OWNERSHIP PERCENTAGES
+    st.subheader("Ownership Mix")
     try:
-        return yf.download(syms, period="2y", group_by='ticker').ffill()
+        # Fetching major holders and converting to a clean display
+        holders = ticker_obj.major_holders
+        if holders is not None:
+            # We want to extract the % values specifically
+            # Typically yfinance returns: [Value, Description]
+            inst_own = holders.iloc[1, 0] # % Held by Institutions
+            insid_own = holders.iloc[0, 0] # % Held by Insiders
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Institutional", f"{inst_own:.1%}" if isinstance(inst_own, float) else inst_own)
+            c2.metric("Insider", f"{insid_own:.1%}" if isinstance(insid_own, float) else insid_own)
+            c3.metric("Float", "Public", help="Remaining shares available to retail.")
     except:
-        return None
+        st.info("Ownership percentages loading...")
 
-# --- 2. ENGINE ---
-all_data = fetch_terminal_data(list(team_intel.keys()))
+    st.divider()
 
-if all_data is not None:
-    sel = st.selectbox("Select Target", list(team_intel.keys()))
-    df_sel = all_data[sel].dropna()
-    ticker_obj = yf.Ticker(sel)
-    
-    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders & Ownership"])
+    # 2. SIMPLIFIED INSIDER ACTIVITY (FORM 4)
+    st.subheader("Insider Intel (Form 4)")
+    try:
+        trades = ticker_obj.insider_transactions
+        if trades is not None and not trades.empty:
+            # 1. Clean the data
+            df_trades = trades[['Start Date', 'Insider', 'Transaction', 'Shares']].copy()
+            df_trades['Shares'] = df_trades['Shares'].apply(lambda x: f"{x:,}") # Add commas
+            
+            # 2. Display with conditional logic
+            # We show the Transaction type and the Shares as the main focus
+            st.dataframe(
+                df_trades.head(15),
+                column_config={
+                    "Start Date": "Date",
+                    "Transaction": st.column_config.TextColumn("Action"),
+                    "Shares": st.column_config.TextColumn("Units")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+            
+            st.caption("🟢 Green = Potential Conviction Buy | 🔴 Red = Executive Distribution")
+        else:
+            st.write("No major moves reported recently.")
+    except:
+        st.warning("SEC Form 4 feed currently offline.")
 
-    with t1:
-        # CANDLESTICK MAIN
-        fig = go.Figure(data=[go.Candlestick(
-            x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
-            low=df_sel['Low'], close=df_sel['Close'], name=sel
-        )])
-        fig.update_layout(
-            template="plotly_dark", xaxis_rangeslider_visible=False, 
-            height=300, margin=dict(l=0, r=0, t=10, b=10), yaxis=dict(side="right")
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-    with t2:
-        # --- RISK SCOUT ENGINE ---
-        cp = df_sel['Close'].iloc[-1]
-        atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
-        t_stop = cp - (atr * 2.5)
-        
-        # Position Sizing
-        acc = st.number_input("Account Size ($)", value=10000)
-        risk_pct = st.slider("Risk Per Trade %", 0.5, 15.0, 3.0, help="High alpha ceiling active.")
-        
-        risk_amt = acc * (risk_pct / 100)
-        stop_dist = cp - t_stop
-        shares = int(risk_amt / stop_dist) if stop_dist > 0 else 0
-        
-        risk_factor = (atr / cp) * 100
-        if risk_factor < 2.0: status_color, status_text = "#4ADE80", "LOW RISK"
-        elif risk_factor < 4.0: status_color, status_text = "#FBBF24", "HIGH RISK"
-        else: status_color, status_text = "#F87171", "EXTREME RISK"
-        
-        st.markdown(f"### {sel} Status: ACCUMULATING", help="Institutional buy pressure check.")
-        st.markdown(f"""
-            <div style="background-color: #1E3A8A; padding: 20px; border-radius: 10px; border-left: 10px solid {status_color};">
-                <p style="color: #DBEAFE; font-size: 20px; margin: 0;">
-                    <b>Risk Factor:</b> {risk_factor:.2f}% | <b>Shares:</b> {shares}
-                </p>
-                <p style="color: {status_color}; font-size: 16px; margin: 5px 0; font-weight: bold;">
-                    CONDITION: {status_text}
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-
-    with t3:
-        # --- THE INSIDER SCOOP ---
-        col_a, col_b = st.columns(2)
-        
-        # 1. Ownership Breakdown
-        with col_a:
-            st.subheader("Major Holders")
-            try:
-                holders = ticker_obj.major_holders
-                st.dataframe(holders, use_container_width=True, hide_index=True)
-            except:
-                st.info("Ownership data private or loading...")
-
-        # 2. Institutional Top 5
-        with col_b:
-            st.subheader("Top Institutions")
-            try:
-                inst = ticker_obj.institutional_holders.head(5)
-                st.dataframe(inst[['Holder', 'Shares']], use_container_width=True, hide_index=True)
-            except:
-                st.info("Institutional data unavailable.")
-
-        st.divider()
-        
-        # 3. Form 4 Insider Trades
-        st.subheader("Recent Insider Activity (Form 4)")
+    # 3. TOP INSTITUTIONS (The Anchors)
+    with st.expander("View Top 5 Institutional Anchors"):
         try:
-            trades = ticker_obj.insider_transactions
-            if trades is not None and not trades.empty:
-                # Clean up the display for mobile
-                st.dataframe(
-                    trades[['Start Date', 'Insider', 'Transaction', 'Shares']].head(12),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.write("No major insider moves reported in last 6 months.")
+            inst = ticker_obj.institutional_holders.head(5)
+            st.table(inst[['Holder', 'Shares']])
         except:
-            st.warning("Could not sync SEC Form 4 feed.")
-
-else:
-    st.error("📡 Sync Issue.")
+            st.write("Data unavailable.")
