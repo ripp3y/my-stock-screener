@@ -1,68 +1,54 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import plotly.graph_objects as go
 
-# --- ENGINE ---
-def color_shares(val, type_val):
-    """Colors share counts based on buy/sell action."""
-    color = '#4ADE80' if 'Buy' in str(type_val) else '#F87171'
-    return f'color: {color}; font-weight: bold;'
+# --- 1. SETTINGS & DATA ---
+st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
-# ... (Previous imports and data fetching logic remains same) ...
+team_intel = {
+    "FIX": 1800.0, "ATRO": 95.0, "CENX": 86.0, "GEV": 1050.0,
+    "TPL": 639.0, "CIEN": 430.0, "STX": 620.0
+}
 
-with t3:
-    # 1. TOP-LEVEL OWNERSHIP PERCENTAGES
-    st.subheader("Ownership Mix")
+@st.cache_data(ttl=600)
+def fetch_terminal_data(tickers):
+    syms = tickers + ["SPY"]
     try:
-        # Fetching major holders and converting to a clean display
-        holders = ticker_obj.major_holders
-        if holders is not None:
-            # We want to extract the % values specifically
-            # Typically yfinance returns: [Value, Description]
-            inst_own = holders.iloc[1, 0] # % Held by Institutions
-            insid_own = holders.iloc[0, 0] # % Held by Insiders
-            
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Institutional", f"{inst_own:.1%}" if isinstance(inst_own, float) else inst_own)
-            c2.metric("Insider", f"{insid_own:.1%}" if isinstance(insid_own, float) else insid_own)
-            c3.metric("Float", "Public", help="Remaining shares available to retail.")
+        return yf.download(syms, period="2y", group_by='ticker').ffill()
     except:
-        st.info("Ownership percentages loading...")
+        return None
 
-    st.divider()
+# --- 2. THE ENGINE ---
+all_data = fetch_terminal_data(list(team_intel.keys()))
 
-    # 2. SIMPLIFIED INSIDER ACTIVITY (FORM 4)
-    st.subheader("Insider Intel (Form 4)")
-    try:
-        trades = ticker_obj.insider_transactions
-        if trades is not None and not trades.empty:
-            # 1. Clean the data
-            df_trades = trades[['Start Date', 'Insider', 'Transaction', 'Shares']].copy()
-            df_trades['Shares'] = df_trades['Shares'].apply(lambda x: f"{x:,}") # Add commas
-            
-            # 2. Display with conditional logic
-            # We show the Transaction type and the Shares as the main focus
-            st.dataframe(
-                df_trades.head(15),
-                column_config={
-                    "Start Date": "Date",
-                    "Transaction": st.column_config.TextColumn("Action"),
-                    "Shares": st.column_config.TextColumn("Units")
-                },
-                hide_index=True,
-                use_container_width=True
-            )
-            
-            st.caption("🟢 Green = Potential Conviction Buy | 🔴 Red = Executive Distribution")
-        else:
-            st.write("No major moves reported recently.")
-    except:
-        st.warning("SEC Form 4 feed currently offline.")
+if all_data is not None:
+    sel = st.selectbox("Select Target", list(team_intel.keys()))
+    df_sel = all_data[sel].dropna()
+    ticker_obj = yf.Ticker(sel)
+    
+    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Intel"])
 
-    # 3. TOP INSTITUTIONS (The Anchors)
-    with st.expander("View Top 5 Institutional Anchors"):
-        try:
-            inst = ticker_obj.institutional_holders.head(5)
-            st.table(inst[['Holder', 'Shares']])
-        except:
-            st.write("Data unavailable.")
+    with t1:
+        # ULTRA-FLAT CHART
+        fig = go.Figure(data=[go.Candlestick(
+            x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
+            low=df_sel['Low'], close=df_sel['Close'], name=sel
+        )])
+        fig.update_layout(
+            template="plotly_dark", xaxis_rangeslider_visible=False, 
+            height=300, margin=dict(l=0, r=0, t=10, b=10), yaxis=dict(side="right")
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with t2:
+        # --- RISK SCOUT (15% Max Risk) ---
+        cp = df_sel['Close'].iloc[-1]
+        atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
+        t_stop = cp - (atr * 2.5)
+        
+        acc = st.number_input("Account Size ($)", value=10000)
+        risk_pct = st.slider("Risk Per Trade %", 0.5, 15.0, 3.0)
+        
+        risk_amt = acc * (risk_pct / 100)
+        shares = int(risk_amt / (cp - t_stop)) if (cp - t_
