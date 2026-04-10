@@ -29,10 +29,11 @@ if all_data is not None:
     df_sel = all_data[sel].dropna()
     ticker_obj = yf.Ticker(sel)
     
-    t1, t2, t3, t4 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🌐 Correlation", "🕵️ Insiders"])
+    # 3-Tab System for maximum focus
+    t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Insiders"])
 
     with t1:
-        # FLAT CHART (Height 350)
+        # FLAT CHART RATIO
         fig = go.Figure(data=[go.Candlestick(
             x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
             low=df_sel['Low'], close=df_sel['Close'], name=sel
@@ -44,22 +45,22 @@ if all_data is not None:
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # --- COMMANDER MOMENTUM & RISK SUITE ---
+        # --- MOMENTUM & RISK SUITE ---
         cp = df_sel['Close'].iloc[-1]
         
-        # 1. Z-Score (Mean Reversion)
+        # Z-Score (Mean Reversion)
         ma_20 = df_sel['Close'].rolling(20).mean()
         std_20 = df_sel['Close'].rolling(20).std()
         z_score = (cp - ma_20.iloc[-1]) / (std_20.iloc[-1] + 1e-6)
         
-        # 2. VPT: Volume Price Trend (Accumulation Indicator)
+        # VPT: Volume Price Trend
         vpt = (df_sel['Volume'] * (df_sel['Close'].pct_change())).cumsum()
         vpt_trend = "ACCUMULATING" if vpt.iloc[-1] > vpt.iloc[-10] else "DISTRIBUTING"
         
-        # 3. Momentum Slope (Relative Speed)
+        # Momentum Slope
         slope = (df_sel['Close'].pct_change(10).iloc[-1]) * 100
         
-        # 4. Standard Risk Metrics
+        # Standard Risk Metrics
         hi_lo = df_sel['High'] - df_sel['Low']
         tr = pd.concat([hi_lo, (df_sel['High']-df_sel['Close'].shift()).abs()], axis=1).max(axis=1)
         atr = tr.rolling(14).mean().iloc[-1]
@@ -67,11 +68,11 @@ if all_data is not None:
         
         c1, c2 = st.columns(2)
         with c1:
-            st.metric("Z-Score", f"{z_score:.2f}", help="Score > 2.0 = Overextended. Price is far from its 20D average.")
+            st.metric("Z-Score", f"{z_score:.2f}", help="Score > 2.0 = Overextended.")
             st.metric(
                 "10D Momentum", 
                 f"{slope:+.2f}%", 
-                help="Momentum Scale: \n > +5%: High Velocity \n 0 to +5%: Building \n < 0%: Decelerating"
+                help="Scale: \n > +5%: High Velocity \n 0 to +5%: Building \n < 0%: Decelerating"
             )
         with c2:
             st.metric("ATR Volatility", f"${atr:.2f}")
@@ -97,16 +98,10 @@ if all_data is not None:
         """, unsafe_allow_html=True)
 
     with t3:
-        # CORRELATION MATRIX
-        st.subheader("🌐 Matrix (20-Day)")
-        corr = all_data.xs('Close', axis=1, level=1).pct_change().corr()
-        st.dataframe(corr.style.background_gradient(cmap='RdBu_r').format("{:.2f}"))
-
-    with t4:
         # INSIDERS
         try:
             st.dataframe(ticker_obj.insider_transactions.head(10), hide_index=True)
         except:
             st.info("No recent Form 4 data.")
 else:
-    st.error("📡 Connection to data stream lost.")
+    st.error("📡 Sync Issue.")
