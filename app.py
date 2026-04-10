@@ -68,10 +68,13 @@ if all_data is not None:
             st.metric("ATR Volatility", f"${atr:.2f}")
             st.metric("Stop Loss", f"${t_stop:.2f}", delta=f"${cp - t_stop:.2f} Buffer")
 
-        # POSITION SIZER
+        # POSITION SIZER (EXTENDED TO 15%)
         st.divider()
         acc = st.number_input("Account Size ($)", value=10000)
-        risk_pct = st.slider("Risk Per Trade %", 0.5, 3.0, 1.0, help="Max % of account to lose if Stop is hit.")
+        risk_pct = st.slider(
+            "Risk Per Trade %", 0.5, 15.0, 1.0, 
+            help="Extended to 15% for high-alpha/big-dipper targets. Manage carefully!"
+        )
         
         # Sizing
         risk_amt = acc * (risk_pct / 100)
@@ -81,14 +84,14 @@ if all_data is not None:
         # --- THE CLEAN BLUE BOX ---
         risk_factor = (atr / cp) * 100
         # Color coding risk status
-        if risk_factor < 2.5:
+        if risk_factor < 2.0:
             status_color, status_text = "#4ADE80", "LOW RISK" # Green
-        elif risk_factor < 4.5:
+        elif risk_factor < 4.0:
             status_color, status_text = "#FBBF24", "HIGH RISK" # Yellow
         else:
             status_color, status_text = "#F87171", "EXTREME RISK" # Red
         
-        st.markdown(f"### {sel} Status: {vpt_trend}", help="Accumulating: 'Big Money' is buying the dip/trend. Distributing: Selling pressure is dominant.")
+        st.markdown(f"### {sel} Status: {vpt_trend}", help="Accumulating: 'Big Money' buying. Distributing: Selling dominant.")
         
         st.markdown(f"""
             <div style="background-color: #1E3A8A; padding: 20px; border-radius: 10px; border-left: 10px solid {status_color};">
@@ -99,7 +102,7 @@ if all_data is not None:
                     CONDITION: {status_text}
                 </p>
                 <p style="color: #93C5FD; font-size: 14px; margin: 0;">
-                    Z-Score: {z_score:.2f} | Max Loss: ${risk_amt:.0f}
+                    15% Ceiling Active | Max Trade Loss: ${risk_amt:.0f}
                 </p>
             </div>
         """, unsafe_allow_html=True)
