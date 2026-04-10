@@ -3,7 +3,7 @@ import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
 
-# --- 1. SETTINGS & DATA ---
+# --- 1. CONFIG & DATA ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
 
 team_intel = {
@@ -19,7 +19,7 @@ def fetch_terminal_data(tickers):
     except:
         return None
 
-# --- 2. THE ENGINE ---
+# --- 2. ENGINE ---
 all_data = fetch_terminal_data(list(team_intel.keys()))
 
 if all_data is not None:
@@ -42,13 +42,12 @@ if all_data is not None:
         st.plotly_chart(fig, use_container_width=True)
 
     with t2:
-        # --- RISK SCOUT (15% Max Risk) ---
+        # --- COMMANDER CORE ---
         cp = df_sel['Close'].iloc[-1]
         atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         t_stop = cp - (atr * 2.5)
         
-        acc = st.number_input("Account Size ($)", value=10000)
-        risk_pct = st.slider("Risk Per Trade %", 0.5, 15.0, 3.0)
-        
-        risk_amt = acc * (risk_pct / 100)
-        shares = int(risk_amt / (cp - t_stop)) if (cp - t_
+        # Risk Metrics
+        ma_20 = df_sel['Close'].rolling(20).mean()
+        std_20 = df_sel['Close'].rolling(20).std()
+        z_score = (cp - ma_20.iloc
