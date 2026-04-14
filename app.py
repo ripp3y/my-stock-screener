@@ -41,20 +41,23 @@ if all_data is not None:
     else: 
         status, s_color = "NEUTRAL (TRENDING)", "#93C5FD"
 
+    # Status Header
     st.markdown(f"### Current Status: <span style='color:{s_color}'>{status}</span>", unsafe_allow_html=True)
     
     t1, t2, t3 = st.tabs(["📊 Technicals", "🛡️ Risk Scout", "🕵️ Intel"])
 
     with t1:
-        # Chart with RSI Subplot
-        fig = go.Figure()
-        fig.add_trace(go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'], name="Price"))
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=350, margin=dict(l=0,r=0,t=0,b=0))
+        # Technicals with RSI
+        fig = go.Figure(data=[go.Candlestick(
+            x=df_sel.index, open=df_sel['Open'], high=df_sel['High'],
+            low=df_sel['Low'], close=df_sel['Close'], name=sel
+        )])
+        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=300)
         st.plotly_chart(fig, use_container_width=True)
         st.metric("Relative Strength Index (RSI)", f"{current_rsi:.2f}")
 
     with t2:
-        # THE COMMANDER BOX
+        # THE COMMANDER BOX: Shares + Stop + Risk + RSI
         cp, atr = df_sel['Close'].iloc[-1], (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         t_stop = cp - (atr * 2.5)
         stop_gap = cp - t_stop
@@ -76,15 +79,15 @@ if all_data is not None:
         """, unsafe_allow_html=True)
 
     with t3:
-        # Clean Intel Logic
-        st.subheader("Ownership & Insider Recon")
+        # Intel logic (Ownership & Insiders)
+        st.subheader("Ownership Profile")
         try:
             holders = ticker_obj.major_holders
             if not holders.empty:
                 c1, c2 = st.columns(2)
                 c1.metric("Institutional", f"{holders.iloc[1, 0]:.1%}" if isinstance(holders.iloc[1, 0], float) else str(holders.iloc[1, 0]))
                 c2.metric("Insider", f"{holders.iloc[0, 0]:.1%}" if isinstance(holders.iloc[0, 0], float) else str(holders.iloc[0, 0]))
-        except: st.info("Ownership data restricted.")
+        except: st.info("Loading ownership data...")
         
         st.divider()
         try:
@@ -94,4 +97,4 @@ if all_data is not None:
         except: st.warning("SEC Database Offline")
 
 else:
-    st.error("📡 Sync Issue.")
+    st.error("📡 Sync Issue: Check Internet Connection")
