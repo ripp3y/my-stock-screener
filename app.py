@@ -94,4 +94,29 @@ with tab_main:
         with sub2:
             cp, atr = df_sel['Close'].iloc[-1], (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
             t_stop = cp - (atr * 2.5)
-            st.
+            st.success(f"**Active Stop Loss: ${t_stop:.2f}**")
+
+        with sub3:
+            st.subheader("Institutional Recon")
+            intel = fetch_intel_secured(sel)
+            if intel is not None: st.dataframe(intel, use_container_width=True)
+            else: st.warning("SEC Database Busy.")
+
+with tab_scout:
+    st.subheader("Momentum Scout")
+    if st.button("🚀 Run Institutional Scan"):
+        results = []
+        for t in SCAN_LIST:
+            try:
+                df = master_data[t].dropna()
+                rsi = calculate_rsi(df['Close']).iloc[-1]
+                score = 0
+                if df['Close'].iloc[-1] > df['Close'].rolling(20).mean().iloc[-1]: score += 1
+                if df['Volume'].iloc[-1] > df['Volume'].rolling(10).mean().iloc[-1]: score += 1
+                if 50 < rsi < 72: score += 1
+                results.append({"Ticker": t, "Price": df['Close'].iloc[-1], "Score": score})
+            except: continue
+        
+        top = pd.DataFrame(results).sort_values(by="Score", ascending=False)
+        for _, row in top[top['Score'] >= 2].iterrows():
+            st.markdown(f"**{row['Ticker']}** | Price: ${row['Price']:.2f} | Strength: {row['Score']}/3")
