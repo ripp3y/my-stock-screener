@@ -5,6 +5,12 @@ import plotly.graph_objects as go
 
 # --- 1. CONFIG & GLOBAL MEMORY ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide")
+# UPDATE THIS BLOCK IN YOUR v2.0 SCRIPT
+STRATEGY_LOG = {
+    "AUGO": "Rebalance window (Fri/Mon). Era Dorada approved ($382M). Watch $105 floor.",
+    "MRVL": "2nm AI Breakout. Record $8.2B revenue. Strong Institutional buy signal.",
+    "FIX": "Strong backlog. Neutral trend. Watching for next breakout trigger."
+}
 
 # This acts as our "Neural Link" - Put our latest chat strategy here
 STRATEGY_LOG = {
