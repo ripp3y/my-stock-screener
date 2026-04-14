@@ -4,7 +4,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 import requests
 
-# --- 1. NEURAL LINK (Top) ---
+# --- 1. NEURAL LINK ---
 STRATEGY_LOG = {
     "AUGO": "Rebalance window (Fri/Mon). Era Dorada approved ($382M). Watch $105 floor.",
     "MRVL": "2nm AI Breakout. Record $8.2B revenue. Strong Institutional buy signal.",
@@ -17,7 +17,7 @@ SCAN_LIST = ["FIX", "ATRO", "GEV", "TPL", "STX", "MRVL", "SNDK", "AUGO", "NVDA",
 # --- 2. CONFIG ---
 st.set_page_config(page_title="Strategic US Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# Mobile CSS Tweak
+# Mobile UI Cleanup
 st.markdown("""
     <style>
     .main { background-color: #0E1117; }
@@ -34,7 +34,6 @@ def fetch_prices(tickers):
 
 def fetch_intel_secured(ticker):
     try:
-        # SEC User-Agent Identity Header
         headers = {"User-Agent": "StrategicTerminalResearch/1.0 (melvin.rippey@example.com)"}
         t = yf.Ticker(ticker)
         return t.major_holders
@@ -48,7 +47,7 @@ def calculate_rsi(data, window=14):
     return 100 - (100 / (1 + rs))
 
 # --- 4. MAIN INTERFACE ---
-st.title("🛡️ Strategic Terminal v2.8")
+st.title("🛡️ Strategic Terminal v2.9")
 master_data = fetch_prices(SCAN_LIST)
 
 tab_main, tab_scout = st.tabs(["🎯 Live Targets", "🔭 Market Scout"])
@@ -59,19 +58,17 @@ with tab_main:
         df_sel = master_data[sel].dropna()
         rsi_val = calculate_rsi(df_sel['Close']).iloc[-1]
         
-        # Display Shared Memo at the top
         if sel in STRATEGY_LOG:
             st.info(f"**Chat Memo:** {STRATEGY_LOG[sel]}")
             
         sub1, sub2, sub3 = st.tabs(["📊 Charts", "🛡️ Risk", "🕵️ Intel"])
         
         with sub1:
-            # Candlestick Chart
             fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
             fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=350, margin=dict(l=0,r=0,t=0,b=0))
             st.plotly_chart(fig, use_container_width=True)
             
-            # --- STRATEGY ALERT SECTION ---
+            # --- STRATEGY ALERT SECTION (FIXED QUOTES) ---
             col_rsi, col_alert = st.columns([1, 2])
             with col_rsi:
                 st.metric("RSI", f"{rsi_val:.2f}")
@@ -87,7 +84,14 @@ with tab_main:
                 else:
                     a_msg, a_bg = "⚖️ NEUTRAL: Consolidating.", "#1f2937"
 
-                st.markdown(f'<div style="background-color: {a_bg}; padding: 10px; border-radius: 8px; text-align: center; color: white; font-size: 13px;"><b>{a_msg}</b></div>', unsafe_allow_html=True)
+                # Wrapped in triple quotes for safety
+                st.markdown(f"""
+                    <div style="background-color: {a_bg}; padding: 10px; border-radius: 8px; text-align: center; color: white; font-size: 13px;">
+                        <b>{a_msg}</b>
+                    </div>
+                    """, unsafe_allow_html=True)
 
         with sub2:
-            cp, atr = df_sel['Close'].iloc[-1], (df_sel['High
+            cp, atr = df_sel['Close'].iloc[-1], (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
+            t_stop = cp - (atr * 2.5)
+            st.
