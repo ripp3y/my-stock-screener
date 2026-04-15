@@ -17,18 +17,17 @@ RADAR_LIST = {
     "GROW": ["PLTR", "SNOW"]
 }
 
-st.set_page_config(page_title="Radar v3.29", layout="wide")
+st.set_page_config(page_title="Radar v3.28", layout="wide")
 
-# --- COMPACT STYLING ---
+# --- [MODULE: CLEAN-HEADER-v1] ---
 st.markdown("""
     <style>
-    .stButton > button { width: 100%; font-size: 10px; padding: 2px; }
-    th { font-size: 10px !important; }
-    td { font-size: 11px !important; }
+    .block-container { padding: 0.5rem 0.5rem; }
+    [data-testid="stHeader"] { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📡 Radar v3.29")
+st.title("📡 Radar v3.28")
 st.caption(f"Pulse: {datetime.now().strftime('%H:%M:%S')}")
 
 all_tickers = [t for sub in RADAR_LIST.values() for t in sub]
@@ -37,13 +36,7 @@ master_df = fetch_broad_market(",".join(all_tickers))
 tab_scout, tab_recon = st.tabs(["🔍 BROAD SCOUT", "📊 RECON"])
 
 with tab_scout:
-    # --- [MODULE: MOBILE-PILOT-SORT] ---
-    st.write("Sort Priority:")
-    c1, c2, c3 = st.columns(3)
-    sort_vel = c1.button("🔥 VEL")
-    sort_pri = c2.button("💰 PRIC")
-    sort_tkr = c3.button("🏷️ TKR")
-
+    # --- [MODULE: INTERACTIVE-GRID-v2] ---
     results = []
     for sector, tickers in RADAR_LIST.items():
         for t in tickers:
@@ -63,28 +56,26 @@ with tab_scout:
                 results.append({
                     "Tkr": t,
                     "Sec": sector,
-                    "Price_val": curr_p,
-                    "Price": f"${curr_p:.2f}",
-                    "Vel_val": score,
+                    "Price": round(curr_p, 2),
                     "Vel": f"{score}/5",
                     "Status": "🚀LEAD" if score >= 4 else "🧱ACUM" 
                 })
             except: continue
     
-    df_display = pd.DataFrame(results)
-    
-    # Sort Handling
-    if sort_pri:
-        df_display = df_display.sort_values(by="Price_val", ascending=False)
-    elif sort_tkr:
-        df_display = df_display.sort_values(by="Tkr")
-    else:
-        # Default to Velocity (Our primary 100% YoY goal)
-        df_display = df_display.sort_values(by="Vel_val", ascending=False)
-
-    # Clean up and display [MODULE: STATIC-TABLE-STABLE]
-    final_table = df_display[["Tkr", "Sec", "Price", "Vel", "Status"]]
-    st.table(final_table)
+    # Render the dynamic grid. TAP HEADERS TO SORT.
+    st.dataframe(
+        pd.DataFrame(results),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Price": st.column_config.NumberColumn(format="$%.2f"),
+            "Tkr": st.column_config.TextColumn(width="small"),
+            "Sec": st.column_config.TextColumn(width="small"),
+            "Vel": st.column_config.TextColumn(width="small"),
+            "Status": st.column_config.TextColumn(width="medium")
+        }
+    )
 
 with tab_recon:
-    sel = st.selectbox("Target Recon", all_tickers)
+    sel = st.selectbox("Target", all_tickers)
+    # [MODULE: CHART-SYNTAX-SHIELD] logic follows...
