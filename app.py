@@ -4,10 +4,10 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # --- 1. NEURAL LINK (Strategic Insider Board) ---
-# Updated with April 14, 2026, Board Intel
+# Updated with confirmed April 2026 Board Intel
 INTEL_BOARD = {
     "SNDK": {
-        "memo": "Nasdaq-100 inclusion effective 4.20.26. Passive funds forced to buy. Golden Cross confirmed 4.10.26.",
+        "memo": "Nasdaq-100 inclusion effective 4.20.26. Passive funds managing $600B+ forced to buy. Golden Cross confirmed 4.10.26.",
         "news": "SanDisk Nasdaq 100 inclusion index fund buying"
     },
     "AUGO": {
