@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
+from datetime import datetime
 
-# --- 1. NEURAL LINK (Strategic Insider Board) ---
-# Updated with confirmed April 2026 Board Intel
+# --- 1. THE INSIDER BOARD (Dynamic Strategy Intel) ---
 INTEL_BOARD = {
     "SNDK": {
-        "memo": "Nasdaq-100 inclusion effective 4.20.26. Passive funds managing $600B+ forced to buy. Golden Cross confirmed 4.10.26.",
+        "memo": "Nasdaq-100 inclusion effective 4.20.26. Passive funds forced to buy. Golden Cross confirmed 4.10.26.",
         "news": "SanDisk Nasdaq 100 inclusion index fund buying"
     },
     "AUGO": {
@@ -33,18 +33,22 @@ SCAN_LIST = list(INTEL_BOARD.keys()) + ["NVDA", "AMD", "AAPL", "MSFT"]
 # --- 2. MOBILE OPTIMIZATION CONFIG ---
 st.set_page_config(page_title="Strategic Terminal", layout="wide", initial_sidebar_state="collapsed")
 
+# Session State for Hard-Syncing
+if 'last_sync' not in st.session_state:
+    st.session_state.last_sync = datetime.now().strftime("%H:%M:%S")
+
 # Mobile CSS for high-glare/factory floor visibility
 st.markdown("""
     <style>
     .main { background-color: #0E1117; }
-    div[data-testid="stMetricValue"] { font-size: 20px; color: #93C5FD; }
-    .stSelectbox label { color: #93C5FD; font-size: 16px; font-weight: bold; }
+    div[data-testid="stMetricValue"] { font-size: 18px; color: #93C5FD; }
+    .stSelectbox label { color: #93C5FD; font-size: 14px; font-weight: bold; }
     div[data-testid="stExpander"] { background-color: #1E293B; border-radius: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. DATA ENGINE ---
-@st.cache_data(ttl="5m")
+@st.cache_data(ttl=300) # 5-minute cache to balance speed and freshness
 def fetch_prices(tickers):
     try: return yf.download(list(tickers), period="1y", group_by='ticker', progress=False).ffill()
     except: return None
@@ -57,11 +61,15 @@ def calculate_rsi(data):
     return 100 - (100 / (1 + rs))
 
 # --- 4. MAIN INTERFACE ---
-st.title("🛡️ Strategic Terminal v3.4")
+st.title("🛡️ Strategic Terminal v3.5")
 
-# Mobile Re-Sync Button (Fixes the "Blank Screen" issues)
-if st.button("🔄 Manual Re-Sync (Tap if screen is blank)"):
+# Hard-Sync Button: Clears cache and reruns the script immediately
+if st.button("🔄 FORCE HARD-SYNC"):
     st.cache_data.clear()
+    st.session_state.last_sync = datetime.now().strftime("%H:%M:%S")
+    st.rerun()
+
+st.caption(f"Last Sync: {st.session_state.last_sync}")
 
 master_data = fetch_prices(SCAN_LIST)
 
@@ -75,44 +83,43 @@ if master_data is not None:
     intel = INTEL_BOARD.get(sel, {"memo": "Tracking institutional momentum...", "news": "stock news"})
     
     st.markdown(f"""
-        <div style="background-color: #1e3a8a; padding: 12px; border-radius: 8px; border-left: 8px solid #3b82f6; margin-bottom: 10px;">
-            <p style="color: #93c5fd; font-size: 13px; margin: 0;"><b>STRATEGIC INSIDER BOARD: {sel}</b></p>
-            <p style="color: white; font-size: 15px; margin: 4px 0;">{intel['memo']}</p>
+        <div style="background-color: #1e3a8a; padding: 10px; border-radius: 8px; border-left: 6px solid #3b82f6; margin-bottom: 8px;">
+            <p style="color: #93c5fd; font-size: 12px; margin: 0;"><b>STRATEGIC INSIDER BOARD: {sel}</b></p>
+            <p style="color: white; font-size: 14px; margin: 3px 0;">{intel['memo']}</p>
         </div>
     """, unsafe_allow_html=True)
     
-    # News Link for shift-recon
-    st.markdown(f"[🔍 Tap for {sel} Strategic News](https://www.google.com/search?q={sel}+{intel['news'].replace(' ', '+')}+news&tbm=nws)")
+    # Quick News Link
+    st.markdown(f"[🔍 {sel} Strategic Intel](https://www.google.com/search?q={sel}+{intel['news'].replace(' ', '+')}+news&tbm=nws)")
 
-    # 3. CHART & ALERTS
-    tab_chart, tab_risk = st.tabs(["📊 Live Chart", "🛡️ Risk Recon"])
+    # 3. CHART & ALERTS (Mobile Optimized)
+    tab_chart, tab_risk = st.tabs(["📊 Chart", "🛡️ Risk"])
     
     with tab_chart:
         fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=320, margin=dict(l=0,r=0,t=0,b=0))
+        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=300, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig, use_container_width=True)
         
-        # Dual-Col RSI and Action Alert
-        col_rsi, col_alert = st.columns([1, 2])
+        col_rsi, col_alert = st.columns([1, 1])
         col_rsi.metric("RSI", f"{rsi_val:.2f}")
         
-        if rsi_val > 80: a_msg, a_bg = "🔥 EXTREME MOMENTUM", "#7f1d1d"
+        # Strategy Alert Logic
+        if rsi_val > 80: a_msg, a_bg = "🔥 EXTREME", "#7f1d1d"
         elif rsi_val > 70: a_msg, a_bg = "⚠️ OVERBOUGHT", "#991b1b"
-        elif rsi_val > 55: a_msg, a_bg = "🚀 BULLISH TREND", "#1e3a8a"
+        elif rsi_val > 55: a_msg, a_bg = "🚀 BULLISH", "#1e3a8a"
         else: a_msg, a_bg = "⚖️ NEUTRAL", "#1f2937"
         
-        col_alert.markdown(f'<div style="background-color: {a_bg}; padding: 10px; border-radius: 8px; text-align: center; color: white; margin-top: 5px;"><b>{a_msg}</b></div>', unsafe_allow_html=True)
+        col_alert.markdown(f'<div style="background-color: {a_bg}; padding: 8px; border-radius: 8px; text-align: center; color: white; margin-top: 5px; font-size: 12px;"><b>{a_msg}</b></div>', unsafe_allow_html=True)
 
     with tab_risk:
         cp = df_sel['Close'].iloc[-1]
         atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         st.markdown(f"""
-            <div style="background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #374151;">
-                <p style="color: #9CA3AF; margin:0;">Recommended Stop Loss</p>
-                <p style="color: #F87171; font-size: 24px; margin:0;"><b>${(cp - (atr * 2.5)):.2f}</b></p>
-                <p style="color: #9CA3AF; margin-top:10px; font-size: 12px;">Based on 2.5x ATR volatility</p>
+            <div style="background-color: #111827; padding: 12px; border-radius: 8px; border: 1px solid #374151;">
+                <p style="color: #9CA3AF; margin:0; font-size: 12px;">Target Stop Loss</p>
+                <p style="color: #F87171; font-size: 20px; margin:0;"><b>${(cp - (atr * 2.5)):.2f}</b></p>
             </div>
         """, unsafe_allow_html=True)
 
 else:
-    st.error("Market Feed Offline. Tap the 'Manual Re-Sync' button above.")
+    st.error("Feed Paused. Tap 'FORCE HARD-SYNC' to reconnect.")
