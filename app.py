@@ -4,27 +4,27 @@ import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- 1. NEURAL LINK (Strategic Insider Board) ---
-# Hard-coded for 2026 market dynamics
+# --- 1. THE UNIFIED INSIDER BOARD (April 15, 2026) ---
 INTEL_BOARD = {
-    "SNDK": {"memo": "Nasdaq-100 inclusion 4.20.26. Passive funds MUST buy millions of shares this week. Signal: Golden Cross.", "news": "SanDisk Nasdaq 100 inclusion"},
-    "AUGO": {"memo": "Board approved $386M Guatemala build (4.13.26). Target: 111k oz gold/yr. Floor: $105.", "news": "Aura Minerals Era Dorada"},
-    "FIX": {"memo": "Record $11.94B backlog (up 99% YoY). AI data centers = 45% rev. Breakout holding.", "news": "Comfort Systems AI backlog"},
-    "MRVL": {"memo": "2nm DSP breakthrough. $2B NVIDIA partnership (4.1.26). AI networking lead.", "news": "Marvell NVIDIA 2nm partnership"},
-    "TSM": {"memo": "2nm node ramping for 2026. High demand from NVDA/AAPL clusters. Bullish RSI.", "news": "TSMC 2nm manufacturing"}
+    "SNDK": {"memo": "Nasdaq-100 inclusion 4.20.26. Massive rebalance this week. Front-running target: $1k.", "news": "SanDisk Nasdaq 100 inclusion"},
+    "AUGO": {"memo": "Record Q1 production (82k oz). $386M Guatemala project greenlit. Target: 111k oz/yr.", "news": "Aura Minerals gold production record"},
+    "FIX": {"memo": "$11.94B record backlog. 45% AI data center exposure. Dividend raised to $0.70.", "news": "Comfort Systems AI data center backlog"},
+    "MRVL": {"memo": "$2B NVIDIA investment (3.31.26). NVLink Fusion networking lead. Bucking Tax Day red.", "news": "Marvell NVIDIA AI partnership"},
+    "CIEN": {"memo": "Zacks #1 Rank. Optical AI networking leader. $5B in AI orders expected in FY2026.", "news": "Ciena AI networking orders record"},
+    "STX": {"memo": "AI storage boom. Pre-earnings run expected before 4.28.26 report. Bullish P/S re-rating.", "news": "Seagate AI storage demand earnings"},
+    "ATRO": {"memo": "Boeing 737 MAX contract (3.20.26). Defense hedge with 10.3% relative strength vs sector.", "news": "Astronics Boeing contract defense demand"}
 }
 SCAN_LIST = list(INTEL_BOARD.keys()) + ["NVDA", "AMD", "AAPL", "MSFT"]
 
 # --- 2. MOBILE RECON CONFIG ---
 st.set_page_config(page_title="Strategic Terminal", layout="wide", initial_sidebar_state="collapsed")
-
 st.markdown("""<style>
     .main { background-color: #0E1117; }
     div[data-testid="stMetricValue"] { color: #93C5FD; font-size: 20px; }
     .stSelectbox label { color: #93C5FD; font-weight: bold; }
     </style>""", unsafe_allow_html=True)
 
-# --- 3. HARD-SYNC (Mobile Wake-Up) ---
+# --- 3. THE "SIGNAL PULSE" (Prevents Mobile Freeze) ---
 def hard_sync():
     st.cache_data.clear()
     st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
@@ -39,7 +39,7 @@ def fetch_prices(tickers):
     except: return None
 
 # --- 5. MAIN INTERFACE ---
-st.title("🛡️ Strategic Terminal v3.7")
+st.title("🛡️ Strategic Terminal v3.8")
 
 if st.button("🔄 WAKE CONNECTION / RE-SYNC", on_click=hard_sync):
     st.toast(f"Terminal Synced at {st.session_state.sync_time}")
