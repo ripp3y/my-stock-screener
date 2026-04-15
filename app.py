@@ -24,6 +24,8 @@ st.markdown("""
     <style>
     .block-container { padding: 0.5rem 0.5rem; }
     [data-testid="stHeader"] { visibility: hidden; }
+    th { font-size: 10px !important; }
+    td { font-size: 11px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -62,9 +64,9 @@ with tab_scout:
                 })
             except: continue
     
-    # Render the dynamic grid. TAP HEADERS TO SORT.
+    # Render the dynamic grid.
     st.dataframe(
-        pd.DataFrame(results),
+        pd.DataFrame(results).sort_values(by="Vel", ascending=False),
         use_container_width=True,
         hide_index=True,
         column_config={
