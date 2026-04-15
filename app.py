@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- 1. NEURAL LINK (Strategic Insider Board) ---
+# Hard-coded for 2026 market dynamics
 INTEL_BOARD = {
     "SNDK": {"memo": "Nasdaq-100 inclusion 4.20.26. Passive funds MUST buy millions of shares this week. Signal: Golden Cross.", "news": "SanDisk Nasdaq 100 inclusion"},
     "AUGO": {"memo": "Board approved $386M Guatemala build (4.13.26). Target: 111k oz gold/yr. Floor: $105.", "news": "Aura Minerals Era Dorada"},
@@ -17,14 +18,13 @@ SCAN_LIST = list(INTEL_BOARD.keys()) + ["NVDA", "AMD", "AAPL", "MSFT"]
 # --- 2. MOBILE RECON CONFIG ---
 st.set_page_config(page_title="Strategic Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS: High-contrast mobile colors
 st.markdown("""<style>
     .main { background-color: #0E1117; }
     div[data-testid="stMetricValue"] { color: #93C5FD; font-size: 20px; }
     .stSelectbox label { color: #93C5FD; font-weight: bold; }
     </style>""", unsafe_allow_html=True)
 
-# --- 3. THE "SIGNAL PULSE" (Prevents Mobile Freeze) ---
+# --- 3. HARD-SYNC (Mobile Wake-Up) ---
 def hard_sync():
     st.cache_data.clear()
     st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
@@ -41,14 +41,12 @@ def fetch_prices(tickers):
 # --- 5. MAIN INTERFACE ---
 st.title("🛡️ Strategic Terminal v3.7")
 
-# The Sync Button acts as a "Wake Up" for the browser
 if st.button("🔄 WAKE CONNECTION / RE-SYNC", on_click=hard_sync):
     st.toast(f"Terminal Synced at {st.session_state.sync_time}")
 
 master_data = fetch_prices(SCAN_LIST)
 
 if master_data is not None:
-    # Target Selection with Auto-Wake Callback
     sel = st.selectbox("🎯 Target Recon", SCAN_LIST, on_change=hard_sync)
     df_sel = master_data[sel].dropna()
     intel = INTEL_BOARD.get(sel, {"memo": "Tracking momentum...", "news": "news"})
