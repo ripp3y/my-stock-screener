@@ -4,26 +4,27 @@ import yfinance as yf
 import plotly.graph_objects as go
 
 # --- 1. NEURAL LINK (Strategic Insider Board) ---
+# Updated with April 14, 2026, Board Intel
 INTEL_BOARD = {
+    "SNDK": {
+        "memo": "Nasdaq-100 inclusion effective 4.20.26. Passive fund forced buying imminent. Golden Cross flashed 4.10.26.",
+        "news": "Nasdaq-100 inclusion rebalance buying"
+    },
     "AUGO": {
-        "memo": "Era Dorada construction greenlit (4.14.26). $386M+ capex. Floor: $105.",
-        "news": "Aura Minerals Era Dorada gold production"
+        "memo": "Board approved $386M-$453M Guatemala build (4.14.26). Target: 111k oz gold/yr. Floor: $105.",
+        "news": "gold production Era Dorada expansion"
     },
     "FIX": {
-        "memo": "Record $11.94B backlog (99% YoY growth). AI infrastructure = 45% revenue.",
-        "news": "Comfort Systems AI data center backlog"
+        "memo": "Record $11.94B backlog (up 99% YoY). AI data centers now 45% of total revenue. Bullish trend.",
+        "news": "AI data center infrastructure backlog"
     },
     "MRVL": {
-        "memo": "2nm DSP breakthrough. $2B NVIDIA partnership for AI interconnects.",
-        "news": "Marvell 2nm chip NVIDIA partnership"
-    },
-    "SNDK": {
-        "memo": "Nasdaq-100 inclusion on 4.20.26. Passive fund buying surge expected.",
-        "news": "SanDisk Nasdaq 100 inclusion index buying"
+        "memo": "2nm DSP breakthrough. $2B NVIDIA partnership (4.1.26). Refocused on AI sub-3nm nodes.",
+        "news": "2nm chip AI demand NVIDIA partnership"
     },
     "TSM": {
-        "memo": "2nm node ramping for 2026. High demand from NVDA/AAPL clusters.",
-        "news": "TSMC 2nm node manufacturing news"
+        "memo": "2nm node ramping for 2026 delivery. Massive demand from NVDA/AAPL clusters. RSI Goldilocks zone.",
+        "news": "2nm manufacturing capacity expansion"
     }
 }
 
@@ -32,7 +33,7 @@ SCAN_LIST = list(INTEL_BOARD.keys()) + ["NVDA", "AMD", "AAPL", "MSFT"]
 # --- 2. MOBILE OPTIMIZATION CONFIG ---
 st.set_page_config(page_title="Strategic Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS: Better contrast and larger touch targets for phone use
+# CSS: High-contrast mobile styling for factory-floor visibility
 st.markdown("""
     <style>
     .main { background-color: #0E1117; }
@@ -43,7 +44,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 3. DATA ENGINE ---
-@st.cache_data(ttl="5m") # Short TTL to ensure you see fresh price action every break
+@st.cache_data(ttl="5m")
 def fetch_prices(tickers):
     try: return yf.download(list(tickers), period="1y", group_by='ticker', progress=False).ffill()
     except: return None
@@ -67,23 +68,22 @@ if master_data is not None:
     rsi_val = calculate_rsi(df_sel['Close']).iloc[-1]
     
     # 2. THE INSIDER BOARD (Detailed Strategy Alert)
-    intel = INTEL_BOARD.get(sel, {"memo": "Tracking institutional momentum...", "news": "stock news"})
+    intel = INTEL_BOARD.get(sel, {"memo": "Tracking institutional momentum and technicals...", "news": "stock news"})
     
     st.markdown(f"""
         <div style="background-color: #1e3a8a; padding: 12px; border-radius: 8px; border-left: 8px solid #3b82f6; margin-bottom: 10px;">
             <p style="color: #93c5fd; font-size: 13px; margin: 0;"><b>STRATEGIC INSIDER BOARD: {sel}</b></p>
-            <p style="color: white; font-size: 15px; margin: 5px 0;">{intel['memo']}</p>
+            <p style="color: white; font-size: 15px; margin: 4px 0;">{intel['memo']}</p>
         </div>
     """, unsafe_allow_html=True)
     
-    # Quick Link to Search Targets
+    # Mobile Quick News Link
     st.markdown(f"[🔍 Tap for {sel} Strategic News](https://www.google.com/search?q={sel}+{intel['news'].replace(' ', '+')}+news&tbm=nws)")
 
     # 3. CHART & ALERTS
     tab_chart, tab_risk = st.tabs(["📊 Live Chart", "🛡️ Risk Recon"])
     
     with tab_chart:
-        # Candle Chart (Responsive for Phone Screens)
         fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
         fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=320, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig, use_container_width=True)
@@ -105,12 +105,10 @@ if master_data is not None:
         atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
         st.markdown(f"""
             <div style="background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #374151;">
-                <p style="color: #9CA3AF; margin:0;">Recommended Stop Loss</p>
+                <p style="color: #9CA3AF; margin:0;">Target Stop Loss</p>
                 <p style="color: #F87171; font-size: 24px; margin:0;"><b>${(cp - (atr * 2.5)):.2f}</b></p>
-                <p style="color: #9CA3AF; margin-top:10px; font-size: 12px;">Based on 2.5x ATR volatility</p>
             </div>
         """, unsafe_allow_html=True)
 
 else:
-    # This message helps you know if you need to refresh the page on your phone
-    st.error("Connection Timed Out. Please refresh your browser page to re-sync.")
+    st.error("Market Feed Offline. Please refresh your browser.")
