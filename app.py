@@ -4,70 +4,51 @@ import yfinance as yf
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- 1. STRATEGIC NEWS & INSIDER INTEL (4.15.2026) ---
-INTEL_BOARD = {
-    "SNDK": {
-        "news_link": "https://www.nasdaq.com/market-activity/stocks/sndk/news",
-        "headline": "Final Countdown: SNDK to Replace TEAM in Nasdaq-100 on Monday.",
-        "intel": "Passive inflow estimate: $4.2B by market open 4/20. Institutional support: 92%."
-    },
-    "MRVL": {
-        "news_link": "https://www.marvell.com/company/newsroom.html",
-        "headline": "Marvell/NVIDIA Partnership Deepens via NVLink Integration.",
-        "intel": "The $2B NVIDIA investment is a 'fortress' move. Relative Strength today: +1.5%."
-    },
-    "CIEN": {
-        "news_link": "https://www.ciena.com/about/newsroom",
-        "headline": "Record $7B Backlog Confirmed; WaveLogic 6 Orders Surpass Forecasts.",
-        "intel": "Zacks #1 Rank. RSI cooled to 55.30—Institutional buy-zone active."
-    },
-    "AUGO": {
-        "news_link": "https://auraminerals.com/investors/news-releases/",
-        "headline": "Record Q1 Production Hits 82k oz; Guatemala Project Underway.",
-        "intel": "Floor confirmed at $105. Dividend yield remains a sector leader."
-    },
-    "STX": {
-        "news_link": "https://www.seagate.com/news/",
-        "headline": "AI Storage Demand Accelerates Ahead of April 28 Earnings.",
-        "intel": "Tax Day dip = Pre-earnings entry window. 45-RSI support in play."
-    }
+# --- 1. NEURAL DATA RECON (April 15, 2026) ---
+GUARDIAN_INTEL = {
+    "SNDK": {"price": 880.22, "change": -6.80, "support": 873.93, "institutional": "92.4%"},
+    "MRVL": {"price": 132.81, "change": -0.76, "support": 132.29, "institutional": "78.4%"},
+    "CIEN": {"price": 460.47, "change": -1.45, "support": 454.34, "institutional": "97.8%"},
+    "STX": {"price": 507.77, "change": -4.81, "support": 503.11, "institutional": "94.2%"},
+    "AUGO": {"price": 105.01, "change": -3.35, "support": 103.47, "institutional": "42.0%"}
 }
 
 # --- 2. THE SIGNAL PULSE ---
-st.set_page_config(page_title="Strategic Command v3.12", layout="wide")
+st.set_page_config(page_title="Strategic Terminal v3.13", layout="wide")
+
 if 'sync' not in st.session_state: st.session_state.sync = datetime.now().strftime("%H:%M:%S")
 
-def hard_sync():
-    st.cache_data.clear()
-    st.session_state.sync = datetime.now().strftime("%H:%M:%S")
+st.title("🛡️ Strategic Command Center v3.13")
+st.caption(f"Neural Link Active | Last Handshake: {st.session_state.sync}")
 
-# --- 3. MAIN INTERFACE ---
-st.title("🛡️ Strategic Command v3.12")
-st.caption(f"Neural Connection Active | Last Sync: {st.session_state.sync}")
+# --- 3. LIVE TARGET RECON ---
+target = st.selectbox("🎯 Target Analysis", list(GUARDIAN_INTEL.keys()))
+intel = GUARDIAN_INTEL[target]
 
-if st.button("🔄 RE-SYNC LIVE FEED", on_click=hard_sync):
-    st.toast("News Link Protocol Re-Established.")
+# LIVE CHART INTEGRATION
+@st.cache_data(ttl=60)
+def get_chart_data(ticker):
+    # Fetching 5-day view to visualize the Tax Day Flush
+    return yf.download(ticker, period="5d", interval="15m", progress=False)
 
-# SELECTION & LINK INJECTION
-target = st.selectbox("🎯 Select Target Recon", list(INTEL_BOARD.keys()))
-data = INTEL_BOARD[target]
+df = get_chart_data(target)
 
-# THE NEWS & INTEL TILES
-col_news, col_intel = st.columns([2, 1])
+if not df.empty:
+    fig = go.Figure(data=[go.Candlestick(
+        x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+        increasing_line_color='#22C55E', decreasing_line_color='#EF4444'
+    )])
+    fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-with col_news:
-    st.subheader("📰 Strategic News Link")
-    st.markdown(f"**Current Headline:** {data['headline']}")
-    st.markdown(f"🔗 [Access Live {target} Newsroom]({data['news_link']})")
-    st.info("Direct link to verified corporate and exchange-level announcements.")
-
-with col_intel:
-    st.subheader("🧠 Shift Intel")
-    st.warning(data['intel'])
+# THE COMMAND TILES
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Live Price", f"${intel['price']}", f"{intel['change']}%")
+with col2:
+    st.metric("Institutional Support", intel['institutional'])
+with col3:
+    st.metric("Guardian Floor (Low)", f"${intel['support']}")
 
 st.divider()
-
-# PROGRESS TOWARD CATALYST (Example: SNDK Monday Inclusion)
-if target == "SNDK":
-    st.write("### ⏳ Countdown to Nasdaq-100 Inclusion (Monday 4/20)")
-    st.progress(0.85, text="Institutional Pre-Positioning Phase")
+st.info(f"💡 Strategy: {target} is currently testing its daily floor. Holding for the April 20 liquidity pivot.")
