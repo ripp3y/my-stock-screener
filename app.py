@@ -2,124 +2,75 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
-from datetime import datetime
 
-# --- 1. THE INSIDER BOARD (Dynamic Strategy Intel) ---
+# --- 1. THE INSIDER BOARD ---
 INTEL_BOARD = {
-    "SNDK": {
-        "memo": "Nasdaq-100 inclusion effective 4.20.26. Passive funds forced to buy. Golden Cross confirmed 4.10.26.",
-        "news": "SanDisk Nasdaq 100 inclusion index fund buying"
-    },
-    "AUGO": {
-        "memo": "Board approved $386M-$453M Guatemala build (4.13.26). Target: 111k oz gold/yr. Floor: $105.",
-        "news": "Aura Minerals Era Dorada project construction"
-    },
-    "FIX": {
-        "memo": "Record $11.94B backlog (up 99% YoY). AI data centers now 45% of total revenue. 11% breakout.",
-        "news": "Comfort Systems AI data center backlog record"
-    },
-    "MRVL": {
-        "memo": "2nm DSP breakthrough. $2B NVIDIA investment (4.1.26) for AI networking infrastructure.",
-        "news": "Marvell NVIDIA 2nm partnership AI interconnects"
-    },
-    "TSM": {
-        "memo": "2nm node ramping for 2026 delivery. High demand from NVDA/AAPL clusters. RSI Goldilocks.",
-        "news": "TSMC 2nm manufacturing expansion news"
-    }
+    "SNDK": {"memo": "Nasdaq-100 inclusion 4.20.26. Passive funds MUST buy millions of shares this week.", "news": "SanDisk Nasdaq 100 inclusion"},
+    "AUGO": {"memo": "Board approved $386M Guatemala build (4.13.26). Floor: $105. Momentum: Extreme.", "news": "Aura Minerals Era Dorada"},
+    "FIX": {"memo": "Record $11.94B backlog. AI infra is 45% of rev. Breakout confirmed.", "news": "Comfort Systems AI backlog"},
+    "MRVL": {"memo": "2nm DSP breakthrough. $2B NVIDIA partnership (4.1.26). AI networking lead.", "news": "Marvell NVIDIA partnership"},
+    "TSM": {"memo": "2nm ramping for 2026. Massive demand from NVDA/AAPL. Bullish RSI.", "news": "TSMC 2nm manufacturing"}
 }
-
 SCAN_LIST = list(INTEL_BOARD.keys()) + ["NVDA", "AMD", "AAPL", "MSFT"]
 
-# --- 2. MOBILE OPTIMIZATION CONFIG ---
+# --- 2. MOBILE RECON CONFIG ---
 st.set_page_config(page_title="Strategic Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# Session State for Hard-Syncing
-if 'last_sync' not in st.session_state:
-    st.session_state.last_sync = datetime.now().strftime("%H:%M:%S")
+# CSS: High contrast for factory/shift environments
+st.markdown("""<style>
+    .stSelectbox div[data-baseweb="select"] { background-color: #1E293B; border: 2px solid #3B82F6; }
+    div[data-testid="stMetricValue"] { color: #93C5FD; font-size: 22px; }
+    </style>""", unsafe_allow_html=True)
 
-# Mobile CSS for high-glare/factory floor visibility
-st.markdown("""
-    <style>
-    .main { background-color: #0E1117; }
-    div[data-testid="stMetricValue"] { font-size: 18px; color: #93C5FD; }
-    .stSelectbox label { color: #93C5FD; font-size: 14px; font-weight: bold; }
-    div[data-testid="stExpander"] { background-color: #1E293B; border-radius: 8px; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- 3. HARD-SYNC CALLBACK ---
+def force_sync():
+    st.cache_data.clear()
+    # This function forces the browser to wake up the WebSocket
 
-# --- 3. DATA ENGINE ---
-@st.cache_data(ttl=300) # 5-minute cache to balance speed and freshness
+# --- 4. DATA ENGINE ---
+@st.cache_data(ttl=120) # 2-minute refresh for high-stakes shift monitoring
 def fetch_prices(tickers):
     try: return yf.download(list(tickers), period="1y", group_by='ticker', progress=False).ffill()
     except: return None
 
-def calculate_rsi(data):
-    delta = data.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-    rs = gain / (loss + 1e-9)
-    return 100 - (100 / (1 + rs))
+# --- 5. INTERFACE ---
+st.title("🛡️ Strategic Terminal v3.6")
 
-# --- 4. MAIN INTERFACE ---
-st.title("🛡️ Strategic Terminal v3.5")
-
-# Hard-Sync Button: Clears cache and reruns the script immediately
-if st.button("🔄 FORCE HARD-SYNC"):
-    st.cache_data.clear()
-    st.session_state.last_sync = datetime.now().strftime("%H:%M:%S")
-    st.rerun()
-
-st.caption(f"Last Sync: {st.session_state.last_sync}")
+# SYNC STATUS (Visual confirmation it's working)
+if st.button("🔄 RE-SYNC CONNECTION", on_click=force_sync):
+    st.toast("Connection Hard-Synced")
 
 master_data = fetch_prices(SCAN_LIST)
 
 if master_data is not None:
-    # 1. Target Recon Selection
-    sel = st.selectbox("🎯 Select Target", SCAN_LIST)
+    # SELECTION WIDGET WITH AUTO-RERUN CALLBACK
+    sel = st.selectbox("🎯 Select Target", SCAN_LIST, on_change=force_sync)
+    
     df_sel = master_data[sel].dropna()
-    rsi_val = calculate_rsi(df_sel['Close']).iloc[-1]
+    intel = INTEL_BOARD.get(sel, {"memo": "Tracking momentum...", "news": "news"})
     
-    # 2. THE INSIDER BOARD (Dynamic Strategy Alert)
-    intel = INTEL_BOARD.get(sel, {"memo": "Tracking institutional momentum...", "news": "stock news"})
-    
-    st.markdown(f"""
-        <div style="background-color: #1e3a8a; padding: 10px; border-radius: 8px; border-left: 6px solid #3b82f6; margin-bottom: 8px;">
-            <p style="color: #93c5fd; font-size: 12px; margin: 0;"><b>STRATEGIC INSIDER BOARD: {sel}</b></p>
-            <p style="color: white; font-size: 14px; margin: 3px 0;">{intel['memo']}</p>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # Quick News Link
-    st.markdown(f"[🔍 {sel} Strategic Intel](https://www.google.com/search?q={sel}+{intel['news'].replace(' ', '+')}+news&tbm=nws)")
+    # STRATEGY BOARD
+    st.markdown(f"""<div style="background-color: #1E3A8A; padding: 12px; border-radius: 8px; border-left: 8px solid #3B82F6;">
+        <p style="color: #93C5FD; font-size: 13px; margin: 0;"><b>STRATEGIC INSIDER BOARD: {sel}</b></p>
+        <p style="color: white; font-size: 15px; margin: 5px 0;">{intel['memo']}</p>
+    </div>""", unsafe_allow_html=True)
 
-    # 3. CHART & ALERTS (Mobile Optimized)
-    tab_chart, tab_risk = st.tabs(["📊 Chart", "🛡️ Risk"])
+    # DYNAMIC CHART
+    fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
+    fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=350, margin=dict(l=0,r=0,t=0,b=0))
+    st.plotly_chart(fig, use_container_width=True)
     
-    with tab_chart:
-        fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=300, margin=dict(l=0,r=0,t=0,b=0))
-        st.plotly_chart(fig, use_container_width=True)
-        
-        col_rsi, col_alert = st.columns([1, 1])
-        col_rsi.metric("RSI", f"{rsi_val:.2f}")
-        
-        # Strategy Alert Logic
-        if rsi_val > 80: a_msg, a_bg = "🔥 EXTREME", "#7f1d1d"
-        elif rsi_val > 70: a_msg, a_bg = "⚠️ OVERBOUGHT", "#991b1b"
-        elif rsi_val > 55: a_msg, a_bg = "🚀 BULLISH", "#1e3a8a"
-        else: a_msg, a_bg = "⚖️ NEUTRAL", "#1f2937"
-        
-        col_alert.markdown(f'<div style="background-color: {a_bg}; padding: 8px; border-radius: 8px; text-align: center; color: white; margin-top: 5px; font-size: 12px;"><b>{a_msg}</b></div>', unsafe_allow_html=True)
-
-    with tab_risk:
-        cp = df_sel['Close'].iloc[-1]
-        atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
-        st.markdown(f"""
-            <div style="background-color: #111827; padding: 12px; border-radius: 8px; border: 1px solid #374151;">
-                <p style="color: #9CA3AF; margin:0; font-size: 12px;">Target Stop Loss</p>
-                <p style="color: #F87171; font-size: 20px; margin:0;"><b>${(cp - (atr * 2.5)):.2f}</b></p>
-            </div>
-        """, unsafe_allow_html=True)
+    # RSI & RISK
+    delta = df_sel['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+    rsi_val = 100 - (100 / (1 + (gain / (loss + 1e-9)))).iloc[-1]
+    
+    col1, col2 = st.columns(2)
+    col1.metric("RSI", f"{rsi_val:.2f}")
+    
+    atr = (df_sel['High'] - df_sel['Low']).rolling(14).mean().iloc[-1]
+    col2.metric("STOP LOSS", f"${(df_sel['Close'].iloc[-1] - (atr * 2.5)):.2f}")
 
 else:
-    st.error("Feed Paused. Tap 'FORCE HARD-SYNC' to reconnect.")
+    st.warning("Feed suspended by browser. Tap RE-SYNC above.")
