@@ -17,20 +17,19 @@ RADAR_LIST = {
     "GROW": ["PLTR", "SNOW"]
 }
 
-st.set_page_config(page_title="Radar v3.25", layout="wide")
+st.set_page_config(page_title="Radar v3.26", layout="wide")
 
 # --- COMPACT STYLING [MODULE: COMPACT-UI-GRID] ---
 st.markdown("""
     <style>
-    .reportview-container .main .block-container { padding-top: 1rem; }
     th { font-size: 10px !important; color: #94A3B8; }
     td { font-size: 11px !important; white-space: nowrap !important; }
-    div[data-testid="stTable"] { overflow-x: auto; }
+    .stSelectbox label { font-size: 10px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📡 Radar v3.25")
-st.caption(f"Neural Link: ACTIVE | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.title("📡 Radar v3.26")
+st.caption(f"Neural Link: ACTIVE | {datetime.now().strftime('%H:%M:%S')}")
 
 all_tickers = [t for sub in RADAR_LIST.values() for t in sub]
 master_df = fetch_broad_market(",".join(all_tickers))
@@ -38,6 +37,11 @@ master_df = fetch_broad_market(",".join(all_tickers))
 tab_scout, tab_recon = st.tabs(["🔍 BROAD SCOUT", "📊 RECON"])
 
 with tab_scout:
+    # --- [MODULE: DYNAMIC-SORT-HEADER] ---
+    c1, c2 = st.columns([1, 1])
+    sort_col = c1.selectbox("Sort By", ["Vel", "Tkr", "Sec", "Price"], index=0)
+    sort_order = c2.selectbox("Order", ["Descending", "Ascending"], index=0)
+
     results = []
     for sector, tickers in RADAR_LIST.items():
         for t in tickers:
@@ -45,28 +49,35 @@ with tab_scout:
                 t_df = master_df[t].dropna()
                 curr_p = t_df['Close'].iloc[-1]
                 
-                # Scoring (v3.22 Logic - Proven for 80-100% YoY targets)
+                # Scoring (v3.22 Logic)
                 score = 0
-                score += 1 if curr_p > t_df['Close'].iloc[0] else 0 # Trend
-                score += 1 if t_df['Volume'].iloc[-1] > t_df['Volume'].mean() else 0 # Vol
+                score += 1 if curr_p > t_df['Close'].iloc[0] else 0 
+                score += 1 if t_df['Volume'].iloc[-1] > t_df['Volume'].mean() else 0 
                 delta = t_df['Close'].diff()
                 rsi = 100 - (100 / (1 + (delta.where(delta > 0, 0).mean() / (delta.where(delta < 0, 0).abs().mean() + 1e-9))))
-                score += 1 if rsi < 65 else 0 # Runway
-                score += 2 if sector == "TECH" else 1 # Sector Alpha
+                score += 1 if rsi < 65 else 0 
+                score += 2 if sector == "TECH" else 1 
 
                 results.append({
                     "Tkr": t,
                     "Sec": sector,
-                    "Price": f"${curr_p:.2f}",
-                    "Vel": f"{score}/5",
+                    "Price": curr_p, # Keep as float for sorting
+                    "Vel": score,    # Keep as int for sorting
                     "Status": "🚀LEAD" if score >= 4 else "🧱ACUM" 
                 })
             except: continue
     
-    # Render table - Sorted by highest Velocity for growth priority
-    st.table(pd.DataFrame(results).sort_values(by="Vel", ascending=False))
+    # Process Sort and Formatting
+    df_display = pd.DataFrame(results)
+    is_asc = (sort_order == "Ascending")
+    df_display = df_display.sort_values(by=sort_col, ascending=is_asc)
+    
+    # Apply visual formatting after sorting
+    df_display['Price'] = df_display['Price'].apply(lambda x: f"${x:.2f}")
+    df_display['Vel'] = df_display['Vel'].apply(lambda x: f"{x}/5")
+
+    st.table(df_display)
 
 with tab_recon:
-    # [MODULE: CHART-SYNTAX-SHIELD] - Pinned for target deep-dives
     sel = st.selectbox("Target Recon", all_tickers)
-    # Chart code follows...
+    # [MODULE: CHART-SYNTAX-SHIELD] logic follows...
