@@ -2,65 +2,70 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
+from datetime import datetime
 
-# --- 1. THE INSIDER BOARD ---
+# --- 1. NEURAL LINK (Strategic Insider Board) ---
 INTEL_BOARD = {
-    "SNDK": {"memo": "Nasdaq-100 inclusion 4.20.26. Passive funds MUST buy millions of shares this week.", "news": "SanDisk Nasdaq 100 inclusion"},
-    "AUGO": {"memo": "Board approved $386M Guatemala build (4.13.26). Floor: $105. Momentum: Extreme.", "news": "Aura Minerals Era Dorada"},
-    "FIX": {"memo": "Record $11.94B backlog. AI infra is 45% of rev. Breakout confirmed.", "news": "Comfort Systems AI backlog"},
-    "MRVL": {"memo": "2nm DSP breakthrough. $2B NVIDIA partnership (4.1.26). AI networking lead.", "news": "Marvell NVIDIA partnership"},
-    "TSM": {"memo": "2nm ramping for 2026. Massive demand from NVDA/AAPL. Bullish RSI.", "news": "TSMC 2nm manufacturing"}
+    "SNDK": {"memo": "Nasdaq-100 inclusion 4.20.26. Passive funds MUST buy millions of shares this week. Signal: Golden Cross.", "news": "SanDisk Nasdaq 100 inclusion"},
+    "AUGO": {"memo": "Board approved $386M Guatemala build (4.13.26). Target: 111k oz gold/yr. Floor: $105.", "news": "Aura Minerals Era Dorada"},
+    "FIX": {"memo": "Record $11.94B backlog (up 99% YoY). AI data centers = 45% rev. Breakout holding.", "news": "Comfort Systems AI backlog"},
+    "MRVL": {"memo": "2nm DSP breakthrough. $2B NVIDIA partnership (4.1.26). AI networking lead.", "news": "Marvell NVIDIA 2nm partnership"},
+    "TSM": {"memo": "2nm node ramping for 2026. High demand from NVDA/AAPL clusters. Bullish RSI.", "news": "TSMC 2nm manufacturing"}
 }
 SCAN_LIST = list(INTEL_BOARD.keys()) + ["NVDA", "AMD", "AAPL", "MSFT"]
 
 # --- 2. MOBILE RECON CONFIG ---
 st.set_page_config(page_title="Strategic Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS: High contrast for factory/shift environments
+# CSS: High-contrast mobile colors
 st.markdown("""<style>
-    .stSelectbox div[data-baseweb="select"] { background-color: #1E293B; border: 2px solid #3B82F6; }
-    div[data-testid="stMetricValue"] { color: #93C5FD; font-size: 22px; }
+    .main { background-color: #0E1117; }
+    div[data-testid="stMetricValue"] { color: #93C5FD; font-size: 20px; }
+    .stSelectbox label { color: #93C5FD; font-weight: bold; }
     </style>""", unsafe_allow_html=True)
 
-# --- 3. HARD-SYNC CALLBACK ---
-def force_sync():
+# --- 3. THE "SIGNAL PULSE" (Prevents Mobile Freeze) ---
+def hard_sync():
     st.cache_data.clear()
-    # This function forces the browser to wake up the WebSocket
+    st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
+
+if 'sync_time' not in st.session_state:
+    st.session_state.sync_time = datetime.now().strftime("%H:%M:%S")
 
 # --- 4. DATA ENGINE ---
-@st.cache_data(ttl=120) # 2-minute refresh for high-stakes shift monitoring
+@st.cache_data(ttl=120) 
 def fetch_prices(tickers):
     try: return yf.download(list(tickers), period="1y", group_by='ticker', progress=False).ffill()
     except: return None
 
-# --- 5. INTERFACE ---
-st.title("🛡️ Strategic Terminal v3.6")
+# --- 5. MAIN INTERFACE ---
+st.title("🛡️ Strategic Terminal v3.7")
 
-# SYNC STATUS (Visual confirmation it's working)
-if st.button("🔄 RE-SYNC CONNECTION", on_click=force_sync):
-    st.toast("Connection Hard-Synced")
+# The Sync Button acts as a "Wake Up" for the browser
+if st.button("🔄 WAKE CONNECTION / RE-SYNC", on_click=hard_sync):
+    st.toast(f"Terminal Synced at {st.session_state.sync_time}")
 
 master_data = fetch_prices(SCAN_LIST)
 
 if master_data is not None:
-    # SELECTION WIDGET WITH AUTO-RERUN CALLBACK
-    sel = st.selectbox("🎯 Select Target", SCAN_LIST, on_change=force_sync)
-    
+    # Target Selection with Auto-Wake Callback
+    sel = st.selectbox("🎯 Target Recon", SCAN_LIST, on_change=hard_sync)
     df_sel = master_data[sel].dropna()
     intel = INTEL_BOARD.get(sel, {"memo": "Tracking momentum...", "news": "news"})
     
-    # STRATEGY BOARD
-    st.markdown(f"""<div style="background-color: #1E3A8A; padding: 12px; border-radius: 8px; border-left: 8px solid #3B82F6;">
+    # STRATEGY ALERT BOARD
+    st.markdown(f"""<div style="background-color: #1E3A8A; padding: 12px; border-radius: 8px; border-left: 8px solid #3B82F6; margin-bottom: 10px;">
         <p style="color: #93C5FD; font-size: 13px; margin: 0;"><b>STRATEGIC INSIDER BOARD: {sel}</b></p>
         <p style="color: white; font-size: 15px; margin: 5px 0;">{intel['memo']}</p>
+        <p style="color: #93C5FD; font-size: 11px; margin: 0;">Last Hard-Sync: {st.session_state.sync_time}</p>
     </div>""", unsafe_allow_html=True)
 
-    # DYNAMIC CHART
+    # LIVE CHART
     fig = go.Figure(data=[go.Candlestick(x=df_sel.index, open=df_sel['Open'], high=df_sel['High'], low=df_sel['Low'], close=df_sel['Close'])])
     fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, height=350, margin=dict(l=0,r=0,t=0,b=0))
     st.plotly_chart(fig, use_container_width=True)
     
-    # RSI & RISK
+    # METRICS
     delta = df_sel['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
@@ -73,4 +78,4 @@ if master_data is not None:
     col2.metric("STOP LOSS", f"${(df_sel['Close'].iloc[-1] - (atr * 2.5)):.2f}")
 
 else:
-    st.warning("Feed suspended by browser. Tap RE-SYNC above.")
+    st.error("Feed Paused. Tap 'WAKE CONNECTION' above.")
