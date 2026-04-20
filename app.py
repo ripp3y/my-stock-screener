@@ -4,12 +4,14 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [LIBRARY: DATA-CACHING-IRON] ---
+# Optimized for high-frequency mobile screening
 @st.cache_data(ttl=300)
 def fetch_broad_market(ticker_string):
     tickers = ticker_string.split(',')
     return yf.download(tickers, period="5d", interval="60m", group_by='ticker', progress=False)
 
-# --- BACKBONE: BROAD SPECTRUM SECTORS ---
+# --- BACKBONE: FORERUNNER PORTFOLIO ---
+# 80-100% YoY Target Sectors
 RADAR_LIST = {
     "TECH": ["SNDK", "NVDA", "MRVL", "CIEN", "AMD"],
     "ENGY": ["AUGO", "XLE"],
@@ -20,17 +22,18 @@ RADAR_LIST = {
 st.set_page_config(page_title="Radar v3.28", layout="wide")
 
 # --- [MODULE: CLEAN-HEADER-v1] ---
+# Strips UI noise to maximize mobile visibility
 st.markdown("""
     <style>
     .block-container { padding: 0.5rem 0.5rem; }
     [data-testid="stHeader"] { visibility: hidden; }
-    th { font-size: 10px !important; }
-    td { font-size: 11px !important; }
+    th { font-size: 10px !important; color: #94A3B8; }
+    td { font-size: 11px !important; white-space: nowrap !important; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("📡 Radar v3.28")
-st.caption(f"Pulse: {datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"Neural Link: ACTIVE | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 all_tickers = [t for sub in RADAR_LIST.values() for t in sub]
 master_df = fetch_broad_market(",".join(all_tickers))
@@ -46,7 +49,7 @@ with tab_scout:
                 t_df = master_df[t].dropna()
                 curr_p = t_df['Close'].iloc[-1]
                 
-                # Scoring (v3.22 Proven Backbone)
+                # [MODULE: SCOUT-5PT-LOGIC] - High Velocity Growth Scoring
                 score = 0
                 score += 1 if curr_p > t_df['Close'].iloc[0] else 0 
                 score += 1 if t_df['Volume'].iloc[-1] > t_df['Volume'].mean() else 0 
@@ -80,4 +83,4 @@ with tab_scout:
 
 with tab_recon:
     sel = st.selectbox("Target", all_tickers)
-    # [MODULE: CHART-SYNTAX-SHIELD] logic follows...
+    # Target detail logic remains preserved in library
