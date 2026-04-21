@@ -4,83 +4,79 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [LIBRARY: DATA-CACHING-IRON] ---
-# Optimized for high-frequency mobile screening
 @st.cache_data(ttl=300)
-def fetch_broad_market(ticker_string):
+def fetch_stones(ticker_string):
     tickers = ticker_string.split(',')
     return yf.download(tickers, period="5d", interval="60m", group_by='ticker', progress=False)
 
-# --- BACKBONE: FORERUNNER PORTFOLIO ---
-# 80-100% YoY Target Sectors
+# --- BACKBONE: STEPPING STONES (v3.31) ---
 RADAR_LIST = {
-    "TECH": ["SNDK", "NVDA", "MRVL", "CIEN", "AMD"],
-    "ENGY": ["AUGO", "XLE"],
-    "BIO": ["IBB", "VRTX"],
-    "GROW": ["PLTR", "SNOW"]
+    "ENGINES": ["STX", "MRVL", "SNDK"],
+    "ACTIVE_HOP": ["LASR"],
+    "WATCH_LIST": ["AXTI", "MSFT"]
 }
 
-st.set_page_config(page_title="Radar v3.28", layout="wide")
+st.set_page_config(page_title="Radar v3.31", layout="wide")
 
-# --- [MODULE: CLEAN-HEADER-v1] ---
-# Strips UI noise to maximize mobile visibility
+# --- MOBILE UI SHIELD ---
 st.markdown("""
     <style>
     .block-container { padding: 0.5rem 0.5rem; }
     [data-testid="stHeader"] { visibility: hidden; }
-    th { font-size: 10px !important; color: #94A3B8; }
-    td { font-size: 11px !important; white-space: nowrap !important; }
+    .stButton > button { width: 100%; font-size: 12px; height: 35px; border-radius: 5px; }
+    th { font-size: 11px !important; color: #94A3B8; }
+    td { font-size: 13px !important; font-weight: 500; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📡 Radar v3.28")
-st.caption(f"Neural Link: ACTIVE | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.title("📡 Radar v3.31")
+st.caption(f"Stone Hop Active | {datetime.now().strftime('%H:%M:%S')}")
 
 all_tickers = [t for sub in RADAR_LIST.values() for t in sub]
-master_df = fetch_broad_market(",".join(all_tickers))
+master_df = fetch_stones(",".join(all_tickers))
 
-tab_scout, tab_recon = st.tabs(["🔍 BROAD SCOUT", "📊 RECON"])
+tab_scout, tab_recon = st.tabs(["🔍 SCOUT", "📊 RECON"])
 
 with tab_scout:
-    # --- [MODULE: INTERACTIVE-GRID-v2] ---
+    # --- [MODULE: MOBILE-PILOT-SORT] ---
+    c1, c2, c3 = st.columns(3)
+    sort_vel = c1.button("🔥 VEL")
+    sort_pri = c2.button("💰 PRICE")
+    sort_tkr = c3.button("🏷️ TKR")
+
     results = []
-    for sector, tickers in RADAR_LIST.items():
+    for category, tickers in RADAR_LIST.items():
         for t in tickers:
             try:
                 t_df = master_df[t].dropna()
                 curr_p = t_df['Close'].iloc[-1]
+                prev_p = t_df['Close'].iloc[0]
                 
-                # [MODULE: SCOUT-5PT-LOGIC] - High Velocity Growth Scoring
+                # [MODULE: SCOUT-5PT-LOGIC]
                 score = 0
-                score += 1 if curr_p > t_df['Close'].iloc[0] else 0 
+                score += 1 if curr_p > prev_p else 0 
                 score += 1 if t_df['Volume'].iloc[-1] > t_df['Volume'].mean() else 0 
-                delta = t_df['Close'].diff()
-                rsi = 100 - (100 / (1 + (delta.where(delta > 0, 0).mean() / (delta.where(delta < 0, 0).abs().mean() + 1e-9))))
-                score += 1 if rsi < 65 else 0 
-                score += 2 if sector == "TECH" else 1 
+                score += 2 if category == "ENGINES" else 1 
 
                 results.append({
                     "Tkr": t,
-                    "Sec": sector,
-                    "Price": round(curr_p, 2),
+                    "Price_val": curr_p,
+                    "Price": f"${curr_p:.2f}",
+                    "Vel_val": score,
                     "Vel": f"{score}/5",
-                    "Status": "🚀LEAD" if score >= 4 else "🧱ACUM" 
+                    "Status": "🚀LEAD" if score >= 4 else "🧱ACUM" if score >= 2 else "🔎SCAN"
                 })
             except: continue
     
-    # Render the dynamic grid.
-    st.dataframe(
-        pd.DataFrame(results).sort_values(by="Vel", ascending=False),
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Price": st.column_config.NumberColumn(format="$%.2f"),
-            "Tkr": st.column_config.TextColumn(width="small"),
-            "Sec": st.column_config.TextColumn(width="small"),
-            "Vel": st.column_config.TextColumn(width="small"),
-            "Status": st.column_config.TextColumn(width="medium")
-        }
-    )
+    df_display = pd.DataFrame(results)
+    
+    # Sort Engine
+    if sort_pri: df_display = df_display.sort_values(by="Price_val", ascending=False)
+    elif sort_tkr: df_display = df_display.sort_values(by="Tkr")
+    else: df_display = df_display.sort_values(by="Vel_val", ascending=False)
+
+    st.table(df_display[["Tkr", "Price", "Vel", "Status"]])
 
 with tab_recon:
-    sel = st.selectbox("Target", all_tickers)
-    # Target detail logic remains preserved in library
+    sel = st.selectbox("Stone Select", all_tickers)
+    st.info(f"Hopping Target: {sel}")
