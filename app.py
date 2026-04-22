@@ -3,13 +3,12 @@ import pandas as pd
 import yfinance as yf
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="Radar v5.90", layout="wide")
+st.set_page_config(page_title="Radar v6.0", layout="wide")
 
 # --- [2. DATA LOADER] ---
 @st.cache_data(ttl=3600)
 def get_live_metrics(tickers):
     if not tickers: return None
-    # Hourly data for 5 days ensures we catch the latest '24h' move accurately
     return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
 
 # --- [3. STYLING] ---
@@ -20,14 +19,14 @@ def highlight_velocity(row):
     return [''] * len(row)
 
 # --- [4. UI HEADER] ---
-st.title("📡 Radar v5.90: Tactical Portfolio")
+st.title("📡 Radar v6.0: Strategic Core")
 
 # --- [5. TABS] ---
 tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
 
 # --- [TAB 1: RECON] ---
 with tab_recon:
-    st.subheader("Tactical Portfolio Overview")
+    st.subheader("Tactical Portfolio")
     portfolio = ["NVTS", "FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
     data = get_live_metrics(portfolio)
     
@@ -42,26 +41,31 @@ with tab_recon:
     for t in portfolio:
         try:
             curr = data[t]['Close'].iloc[-1]
-            # Calculating move based on 24 hours ago
             prev = data[t]['Close'].iloc[-8]
             move = ((curr - prev) / prev) * 100
             recon_list.append({
                 "Ticker": t,
-                "Current Price": f"${curr:.2f}",
+                "Price": f"${curr:.2f}",
                 "24h Move": f"{move:+.2f}%",
                 "20% Target": f"${curr * 1.20:.2f}",
                 "Mission Status": status_map.get(t, "Scanning")
             })
         except: continue
     
+    # RENDER CLEAN TABLE
     df_recon = pd.DataFrame(recon_list)
-    if not df_recon.empty:
-        st.table(df_recon.style.apply(highlight_velocity, axis=1))
+    st.table(df_recon.style.apply(highlight_velocity, axis=1))
+    
+    # EXTERNAL CHART DECK (Keeps table clean)
+    st.write("### 📈 Open Charts")
+    cols = st.columns(len(portfolio))
+    for i, t in enumerate(portfolio):
+        with cols[i]:
+            st.link_button(f"{t}", f"https://finance.yahoo.com/quote/{t}/chart")
 
 # --- [TAB 2: ALPHA] ---
 with tab_alpha:
-    st.subheader("🌪️ Alpha Scanner")
-    # Resetting to the simpler, high-reliability search list
+    st.subheader("🌪️ Alpha Search")
     alpha_watchlist = ["ALAB", "CRUS", "AMSC", "FLR", "VRT", "SMCI"]
     alpha_data = get_live_metrics(alpha_watchlist)
     
@@ -75,10 +79,11 @@ with tab_alpha:
 
 # --- [TAB 3: BREAKOUTS] ---
 with tab_breakout:
-    st.subheader("🚀 Breakout Monitor")
-    st.write("Tracking High-Volume runners beyond 52-Week Highs.")
-    for lead in ["ALAB", "CRUS", "AMSC"]:
-        st.write(f"**{lead}**: Ready for Deployment.")
+    st.subheader("🚀 High-Velocity Monitor")
+    leads = ["NVTS", "FIX", "ALAB", "CRUS"]
+    for l in leads:
+        st.write(f"**{l}**: Institutional Momentum Active.")
+        st.link_button(f"View {l} Chart", f"https://finance.yahoo.com/quote/{l}/chart")
 
 st.divider()
-st.caption("Strategy Restored: v5.90 baseline. 100% YoY Target in focus.")
+st.caption("Strategy: v6.0 Baseline. Focus on NVTS $22 target and FIX/MTZ infrastructure rotation.")
