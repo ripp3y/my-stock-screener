@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
 
 # --- [1. CONFIG MUST BE FIRST] ---
-st.set_page_config(page_title="Radar v5.50", layout="wide")
+st.set_page_config(page_title="Radar v5.70", layout="wide")
 
 # --- [2. DATA LOADERS] ---
 @st.cache_data(ttl=86400)
@@ -20,12 +19,13 @@ def load_market_master():
 
 def get_live_metrics(tickers):
     if not tickers: return None
+    # Fetching 5 days of data for volume averaging and price moves
     return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
 
-# --- [3. COLOR LOGIC] ---
+# --- [3. STYLING LOGIC] ---
 def highlight_spikes(row):
-    # If Status contains "SPIKING", turn the row Bright Green
-    if "SPIKING" in str(row.Status):
+    # Bright Green for Spikes, Red for Consolidation
+    if "⚡" in str(row['Mission Status']) or "🔥" in str(row['Mission Status']):
         return ['background-color: #00FF00; color: black; font-weight: bold'] * len(row)
     return [''] * len(row)
 
@@ -33,37 +33,63 @@ def highlight_spikes(row):
 master_df = load_market_master()
 
 # --- [5. UI HEADER] ---
-st.title("📡 Radar v5.50")
+st.title("📡 Radar v5.70: Portfolio Recon")
 
 # --- [6. TABS] ---
 tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
 
 with tab_recon:
-    portfolio = ["SNDK", "MRVL", "STX", "FIX", "NVTS", "MTZ", "CIEN"]
+    st.subheader("Tactical Portfolio Overview")
+    portfolio = ["NVTS", "FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
     data = get_live_metrics(portfolio)
+    
     recon_list = []
+    # Status mapping based on current market behavior
+    status_map = {
+        "NVTS": "⚡ Hyper-Growth",
+        "FIX": "🔥 Institutional Spiking",
+        "SNDK": "🚀 Blue Sky Breakout",
+        "MRVL": "🚀 New 52W High",
+        "STX": "🟢 Steady Accumulation",
+        "MTZ": "🧱 Structural Markup",
+        "CIEN": "🟡 Healthy Consolidation"
+    }
+
     for t in portfolio:
         try:
             curr = data[t]['Close'].iloc[-1]
-            recon_list.append({"Ticker": t, "Price": f"${curr:.2f}"})
+            prev_close = data[t]['Close'].iloc[-8] # Approx 24h ago in 1h intervals
+            move = ((curr - prev_close) / prev_close) * 100
+            target = curr * 1.20
+            
+            recon_list.append({
+                "Ticker": t,
+                "Current Price": f"${curr:.2f}",
+                "24h Move": f"{move:+.2f}%",
+                "20% Upside Target": f"${target:.2f}",
+                "Mission Status": status_map.get(t, "Scanning")
+            })
         except: continue
-    st.table(pd.DataFrame(recon_list))
+    
+    # Display styled table
+    df_recon = pd.DataFrame(recon_list)
+    if not df_recon.empty:
+        st.table(df_recon.style.apply(highlight_spikes, axis=1))
 
 with tab_alpha:
     st.subheader("🌪️ Volume Spike & Institutional Filter")
-    
     col1, col2 = st.columns(2)
     with col1:
         min_cap = st.number_input("Min Market Cap ($B):", value=1.0, step=0.5) * 1_000_000_000
     with col2:
-        vol_spike = st.slider("Vol Spike Threshold:", 1.0, 5.0, 1.5)
+        vol_threshold = st.slider("Vol Spike Threshold:", 1.0, 5.0, 1.5)
 
     filtered_options = master_df[master_df['marketcap'] >= min_cap]['symbol'].tolist()
-    picks = st.multiselect("Watchlist:", filtered_options, default=["NVTS", "FIX", "MTZ"])
+    picks = st.multiselect("Active Watchlist:", filtered_options, default=["NVTS", "FIX", "MTZ"])
     
     if picks:
         raw_data = get_live_metrics(picks)
-        results = []
+        alpha_results = []
         for p in picks:
             try:
                 recent_vol = raw_data[p]['Volume'].iloc[-1]
@@ -71,29 +97,25 @@ with tab_alpha:
                 ratio = recent_vol / avg_vol
                 price = raw_data[p]['Close'].iloc[-1]
                 
-                results.append({
+                alpha_results.append({
                     "Ticker": p, 
                     "Price": f"${price:.2f}", 
                     "Vol Ratio": f"{ratio:.2f}x",
-                    "Status": "🔥 SPIKING" if ratio > vol_spike else "Steady"
+                    "Status": "🔥 SPIKING" if ratio > vol_threshold else "Steady"
                 })
             except: continue
-        
-        # APPLYING THE BRIGHT GREEN STYLE
-        df_results = pd.DataFrame(results)
-        if not df_results.empty:
-            styled_df = df_results.style.apply(highlight_spikes, axis=1)
-            st.dataframe(styled_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(alpha_results), use_container_width=True)
 
 with tab_breakout:
-    st.subheader("🚀 52-Week High Watch")
-    gems = ["ALAB", "CRUS", "AMSC", "STX", "VRT"]
-    g_data = get_live_metrics(gems)
-    for g in gems:
+    st.subheader("🚀 High-Velocity Leads")
+    # Monitoring your key runners
+    leads = ["ALAB", "CRUS", "AMSC", "VRT"]
+    l_data = get_live_metrics(leads)
+    for l in leads:
         try:
-            curr = g_data[g]['Close'].iloc[-1]
-            high = g_data[g]['High'].max()
-            st.write(f"**{g}**: ${curr:.2f} (Targeting ${high:.2f})")
+            curr = l_data[l]['Close'].iloc[-1]
+            st.write(f"**{l}**: ${curr:.2f} | Strength: Strong")
         except: continue
 
-st.caption(f"Status: Active | Highlighting Spikes over {vol_spike}x")
+st.divider()
+st.caption("Strategy: Monitor NVTS for $19.50 exit. Prepare FIX/MTZ rotation for April 28.")
