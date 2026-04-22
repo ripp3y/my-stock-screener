@@ -1,3 +1,9 @@
+# Force the sidebar to stay open on load
+st.set_page_config(
+    page_title="Radar v5.30", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 import streamlit as st
 import pandas as pd
 import yfinance as yf
