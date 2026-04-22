@@ -4,88 +4,92 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [SYSTEM CONFIG] ---
-st.set_page_config(page_title="Radar v5.20", layout="wide")
+st.set_page_config(page_title="Radar v5.30", layout="wide")
 
-# --- [INSTITUTIONAL DATA LOADER] ---
+# --- [ROBUST DATA LOADER] ---
 @st.cache_data(ttl=86400)
 def load_market_master():
-    # Fetching a master list that includes Ticker, Name, Sector, and Market Cap
     url = "https://raw.githubusercontent.com/Ate329/top-us-stock-tickers/main/tickers/all.csv"
     try:
         df = pd.read_csv(url)
-        # Standardizing column names for the filter logic
-        df.columns = [c.lower() for c in df.columns]
+        df.columns = [c.lower().replace(" ", "") for c in df.columns]
+        # FIX: Ensure required columns exist to prevent KeyErrors
+        if 'sector' not in df.columns: df['sector'] = 'Unknown'
+        if 'marketcap' not in df.columns: df['marketcap'] = 0
         return df
     except:
         return pd.DataFrame(columns=['symbol', 'name', 'sector', 'marketcap'])
 
-def get_live_data(tickers):
+def get_live_metrics(tickers):
     if not tickers: return None
-    return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
+    # Fetching 5 days to calculate Average Volume vs Current Volume
+    data = yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
+    return data
 
 # --- [INITIALIZATION] ---
 master_df = load_market_master()
 
-# --- [UI HEADER] ---
-st.title("📡 Radar v5.20")
+# --- [SIDEBAR FILTERS] ---
 st.sidebar.header("🛡️ Institutional Filters")
+min_cap = st.sidebar.slider("Min Market Cap ($B):", 0, 500, 1) * 1_000_000_000
+vol_spike_threshold = st.sidebar.slider("Volume Spike Ratio (x):", 1.0, 5.0, 1.5)
 
-# 1. Market Cap Filter (e.g., Only Mid/Large Cap)
-min_cap = st.sidebar.number_input("Min Market Cap ($ Billions):", value=1.0, step=0.5) * 1_000_000_000
-
-# 2. Sector Filter
-all_sectors = ["All"] + sorted([str(s) for s in master_df['sector'].unique() if str(s) != 'nan'])
-selected_sector = st.sidebar.selectbox("Filter by Sector:", all_sectors)
-
-# --- [TABBED INTERFACE] ---
+# --- [TABS] ---
 tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
 
-# --- [TAB 1: RECON] ---
 with tab_recon:
     portfolio = ["SNDK", "MRVL", "STX", "FIX", "NVTS", "MTZ", "CIEN"]
-    data = get_live_data(portfolio)
+    data = get_live_metrics(portfolio)
     recon_list = []
     for t in portfolio:
         try:
-            curr = data[t]['Close'].iloc[-1]
-            recon_list.append({"Ticker": t, "Price": f"${curr:.2f}"})
+            curr_price = data[t]['Close'].iloc[-1]
+            recon_list.append({"Ticker": t, "Price": f"${curr_price:.2f}"})
         except: continue
     st.table(pd.DataFrame(recon_list))
 
-# --- [TAB 2: ALPHA (FILTERED SEARCH)] ---
 with tab_alpha:
-    st.subheader("Filtered Alpha Scan")
+    st.subheader("🌪️ Volume Spike & Cap Search")
     
-    # Applying the Filters
+    # Filter by Cap
     filtered_df = master_df[master_df['marketcap'] >= min_cap]
-    if selected_sector != "All":
-        filtered_df = filtered_df[filtered_df['sector'] == selected_sector]
-    
     ticker_options = filtered_df['symbol'].tolist()
-    st.write(f"Showing {len(ticker_options)} stocks matching your criteria.")
     
-    picks = st.multiselect("Active Watchlist:", ticker_options, default=ticker_options[:5])
+    picks = st.multiselect("Watchlist:", ticker_options, default=["NVTS", "FIX", "MTZ"])
     
     if picks:
-        s_data = get_live_data(picks)
+        raw_data = get_live_metrics(picks)
         results = []
         for p in picks:
             try:
-                price = s_data[p]['Close'].iloc[-1]
-                results.append({"Ticker": p, "Price": f"${price:.2f}", "Status": "🔥 SCANNING"})
+                # VOLUME SPIKE LOGIC
+                recent_vol = raw_data[p]['Volume'].iloc[-1]
+                avg_vol = raw_data[p]['Volume'].mean()
+                vol_ratio = recent_vol / avg_vol
+                
+                price = raw_data[p]['Close'].iloc[-1]
+                status = "🔥 SPIKING" if vol_ratio > vol_spike_threshold else "Steady"
+                
+                results.append({
+                    "Ticker": p, 
+                    "Price": f"${price:.2f}", 
+                    "Vol Ratio": f"{vol_ratio:.2f}x",
+                    "Status": status
+                })
             except: continue
         st.dataframe(pd.DataFrame(results), use_container_width=True)
 
-# --- [TAB 3: BREAKOUTS] ---
 with tab_breakout:
-    st.subheader("Blue Sky Leads")
-    # Using FIX, MTZ, and ALAB as the benchmark breakout leads
-    gems = ["FIX", "MTZ", "ALAB", "CRUS", "VRT"]
-    gem_data = get_live_data(gems)
+    st.subheader("🚀 52-Week High Watch")
+    gems = ["ALAB", "CRUS", "AMSC", "STX", "VRT"]
+    g_data = get_live_metrics(gems)
     for g in gems:
         try:
-            st.write(f"**{g}** | Current: ${gem_data[g]['Close'].iloc[-1]:.2f}")
+            curr = g_data[g]['Close'].iloc[-1]
+            high = g_data[g]['High'].max()
+            dist = (1 - (curr / high)) * 100
+            st.write(f"**{g}**: ${curr:.2f} ({dist:.2f}% from High)")
         except: continue
 
 st.divider()
-st.caption(f"Filters Active: Min ${min_cap/1e9}B Cap | Sector: {selected_sector}")
+st.caption(f"Strategy: Exit NVTS (3-4 days). Watch for Volume Spikes > {vol_spike_threshold}x.")
