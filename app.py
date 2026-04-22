@@ -1,59 +1,83 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import requests
 from datetime import datetime
 
 # --- [SYSTEM CONFIG] ---
-st.set_page_config(page_title="Radar v5.00", layout="wide")
+st.set_page_config(page_title="Radar v5.10", layout="wide")
 
-# --- [THE MASTER SEARCH ENGINE] ---
-@st.cache_data(ttl=86400) # Only fetch the master list once a day
-def get_all_tickers():
-    # Fetching the official SEC ticker list (5000+ stocks)
-    url = "https://www.sec.gov/files/company_tickers.json"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    # Extracting just the ticker symbols
-    return [item['ticker'] for item in data.values()]
+# --- [MASTER LIST LOADER] ---
+@st.cache_data(ttl=86400)
+def load_global_tickers():
+    # Using a reliable community-maintained CSV for all US tickers
+    url = "https://raw.githubusercontent.com/Ate329/top-us-stock-tickers/main/tickers/all.csv"
+    try:
+        df = pd.read_csv(url)
+        return df['symbol'].tolist()
+    except:
+        # Emergency backup if GitHub is down
+        return ["SNDK", "MRVL", "STX", "FIX", "NVTS", "MTZ", "CIEN", "CRUS", "ALAB", "FLR"]
 
 def get_market_data(tickers):
-    # Fetching data in chunks to prevent timeout
+    if not tickers: return None
     data = yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
     return data
 
 # --- [INITIALIZATION] ---
-all_market_tickers = get_all_tickers()
-st.title("📡 Radar v5.00: Global Market Scanner")
+all_tickers = load_global_tickers()
 
-# --- [TWIN-TAB SEARCH LOGIC] ---
+# --- [UI HEADER] ---
+st.title("📡 Radar v5.10")
+st.caption(f"Connected to {len(all_tickers)} US Tickers | 100% YoY Mode Active")
+
+# --- [TABBED INTERFACE] ---
 tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
 
+# --- [TAB 1: RECON] ---
 with tab_recon:
-    st.subheader("Your Current Stones")
-    # This tab stays focused on your specific portfolio holdings
     portfolio = ["SNDK", "MRVL", "STX", "FIX", "NVTS", "MTZ", "CIEN"]
-    p_data = get_market_data(portfolio)
-    # ... (Same Recon Table Logic as before)
+    data = get_market_data(portfolio)
+    recon_list = []
+    for t in portfolio:
+        try:
+            curr = data[t]['Close'].iloc[-1]
+            prev = data[t]['Close'].iloc[0]
+            change = ((curr - prev) / prev) * 100
+            recon_list.append({"Ticker": t, "Price": f"${curr:.2f}", "Move": f"{change:+.2f}%"})
+        except: continue
+    st.table(pd.DataFrame(recon_list))
 
+# --- [TAB 2: ALPHA (GLOBAL SEARCH)] ---
 with tab_alpha:
-    st.subheader("🌪️ Alpha Channel (Entire Market Scan)")
-    search_query = st.text_input("Enter a Sector (e.g., 'Semiconductor' or 'Energy') to Filter All Stocks")
+    st.subheader("Global Sector Search")
+    user_search = st.multiselect("Search & Add Tickers to Watchlist:", all_tickers, default=["CRUS", "ALAB"])
     
-    # We use a curated 'Watchlist' of 50-100 top movers to keep speed high
-    top_movers = ["NVTS", "FIX", "ALAB", "FLR", "AMSC", "LASR", "VFS", "CRUS", "SMCI", "ARM"]
-    st.write(f"Scanning {len(top_movers)} High-Velocity Leads...")
-    # (Display Table of these movers)
+    if user_search:
+        search_data = get_market_data(user_search)
+        alpha_list = []
+        for t in user_search:
+            try:
+                curr = search_data[t]['Close'].iloc[-1]
+                alpha_list.append({"Ticker": t, "Price": f"${curr:.2f}", "Status": "🔥 WATCHING"})
+            except: continue
+        st.dataframe(pd.DataFrame(alpha_list), use_container_width=True)
 
+# --- [TAB 3: BREAKOUTS] ---
 with tab_breakout:
-    st.subheader("🚀 Blue Sky Search (All NASDAQ/NYSE)")
-    # This button triggers the heavy scan
-    if st.button("Deep Scan for New Breakouts"):
-        st.write("Searching 5,000+ stocks for 52-Week Highs...")
-        # We focus on the S&P 500 and Nasdaq 100 first for speed
-        breakout_leads = ["ALAB", "CRUS", "STX", "MU", "WRTK", "VRT"]
-        st.success("New Potential Gems Found: ALAB, CRUS")
-        st.table(pd.DataFrame([{"Ticker": "ALAB", "Price": "$194.06", "Status": "BREAKING"}]))
+    st.subheader("High-Velocity Scan")
+    # Pre-defined high-potential gems for instant viewing
+    gems = ["CRUS", "AMSC", "ALAB", "FLR", "VRT"]
+    gem_data = get_market_data(gems)
+    
+    breakout_list = []
+    for t in gems:
+        try:
+            high = gem_data[t]['High'].max()
+            curr = gem_data[t]['Close'].iloc[-1]
+            if curr >= (high * 0.97): # Within 3% of 5-day high
+                breakout_list.append({"Ticker": t, "Price": f"${curr:.2f}", "Status": "🚀 BREAKING OUT"})
+        except: continue
+    st.table(pd.DataFrame(breakout_list))
 
-st.info(f"Master List Loaded: {len(all_market_tickers)} tickers ready for deployment.")
+st.divider()
+st.caption("Strategy: Exit NVTS by Monday. Rotate into FIX/MTZ.")
