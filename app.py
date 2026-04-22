@@ -4,7 +4,7 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [1. CONFIG MUST BE FIRST] ---
-st.set_page_config(page_title="Radar v5.40", layout="wide")
+st.set_page_config(page_title="Radar v5.50", layout="wide")
 
 # --- [2. DATA LOADERS] ---
 @st.cache_data(ttl=86400)
@@ -22,17 +22,23 @@ def get_live_metrics(tickers):
     if not tickers: return None
     return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
 
-# --- [3. INITIALIZATION] ---
+# --- [3. COLOR LOGIC] ---
+def highlight_spikes(row):
+    # If Status contains "SPIKING", turn the row Bright Green
+    if "SPIKING" in str(row.Status):
+        return ['background-color: #00FF00; color: black; font-weight: bold'] * len(row)
+    return [''] * len(row)
+
+# --- [4. INITIALIZATION] ---
 master_df = load_market_master()
 
-# --- [4. UI HEADER] ---
-st.title("📡 Radar v5.40")
+# --- [5. UI HEADER] ---
+st.title("📡 Radar v5.50")
 
-# --- [5. TABS] ---
+# --- [6. TABS] ---
 tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
 
 with tab_recon:
-    # Portfolio from your screenshot
     portfolio = ["SNDK", "MRVL", "STX", "FIX", "NVTS", "MTZ", "CIEN"]
     data = get_live_metrics(portfolio)
     recon_list = []
@@ -46,16 +52,13 @@ with tab_recon:
 with tab_alpha:
     st.subheader("🌪️ Volume Spike & Institutional Filter")
     
-    # MOVED FILTERS HERE FOR MOBILE EASE
     col1, col2 = st.columns(2)
     with col1:
         min_cap = st.number_input("Min Market Cap ($B):", value=1.0, step=0.5) * 1_000_000_000
     with col2:
         vol_spike = st.slider("Vol Spike Threshold:", 1.0, 5.0, 1.5)
 
-    # Filtering the 5000+ stock master list
     filtered_options = master_df[master_df['marketcap'] >= min_cap]['symbol'].tolist()
-    
     picks = st.multiselect("Watchlist:", filtered_options, default=["NVTS", "FIX", "MTZ"])
     
     if picks:
@@ -75,7 +78,12 @@ with tab_alpha:
                     "Status": "🔥 SPIKING" if ratio > vol_spike else "Steady"
                 })
             except: continue
-        st.dataframe(pd.DataFrame(results), use_container_width=True)
+        
+        # APPLYING THE BRIGHT GREEN STYLE
+        df_results = pd.DataFrame(results)
+        if not df_results.empty:
+            styled_df = df_results.style.apply(highlight_spikes, axis=1)
+            st.dataframe(styled_df, use_container_width=True)
 
 with tab_breakout:
     st.subheader("🚀 52-Week High Watch")
@@ -88,4 +96,4 @@ with tab_breakout:
             st.write(f"**{g}**: ${curr:.2f} (Targeting ${high:.2f})")
         except: continue
 
-st.caption(f"Status: Active | Filtering {len(master_df)} Stocks")
+st.caption(f"Status: Active | Highlighting Spikes over {vol_spike}x")
