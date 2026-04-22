@@ -1,86 +1,78 @@
-# Force the sidebar to stay open on load
-st.set_page_config(
-    page_title="Radar v5.30", 
-    layout="wide", 
-    initial_sidebar_state="expanded"
-)
 import streamlit as st
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
 
-# --- [SYSTEM CONFIG] ---
-st.set_page_config(page_title="Radar v5.30", layout="wide")
+# --- [1. CONFIG MUST BE FIRST] ---
+st.set_page_config(page_title="Radar v5.40", layout="wide")
 
-# --- [ROBUST DATA LOADER] ---
+# --- [2. DATA LOADERS] ---
 @st.cache_data(ttl=86400)
 def load_market_master():
     url = "https://raw.githubusercontent.com/Ate329/top-us-stock-tickers/main/tickers/all.csv"
     try:
         df = pd.read_csv(url)
         df.columns = [c.lower().replace(" ", "") for c in df.columns]
-        # FIX: Ensure required columns exist to prevent KeyErrors
-        if 'sector' not in df.columns: df['sector'] = 'Unknown'
         if 'marketcap' not in df.columns: df['marketcap'] = 0
         return df
     except:
-        return pd.DataFrame(columns=['symbol', 'name', 'sector', 'marketcap'])
+        return pd.DataFrame(columns=['symbol', 'name', 'marketcap'])
 
 def get_live_metrics(tickers):
     if not tickers: return None
-    # Fetching 5 days to calculate Average Volume vs Current Volume
-    data = yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
-    return data
+    return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
 
-# --- [INITIALIZATION] ---
+# --- [3. INITIALIZATION] ---
 master_df = load_market_master()
 
-# --- [SIDEBAR FILTERS] ---
-st.sidebar.header("🛡️ Institutional Filters")
-min_cap = st.sidebar.slider("Min Market Cap ($B):", 0, 500, 1) * 1_000_000_000
-vol_spike_threshold = st.sidebar.slider("Volume Spike Ratio (x):", 1.0, 5.0, 1.5)
+# --- [4. UI HEADER] ---
+st.title("📡 Radar v5.40")
 
-# --- [TABS] ---
+# --- [5. TABS] ---
 tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
 
 with tab_recon:
+    # Portfolio from your screenshot
     portfolio = ["SNDK", "MRVL", "STX", "FIX", "NVTS", "MTZ", "CIEN"]
     data = get_live_metrics(portfolio)
     recon_list = []
     for t in portfolio:
         try:
-            curr_price = data[t]['Close'].iloc[-1]
-            recon_list.append({"Ticker": t, "Price": f"${curr_price:.2f}"})
+            curr = data[t]['Close'].iloc[-1]
+            recon_list.append({"Ticker": t, "Price": f"${curr:.2f}"})
         except: continue
     st.table(pd.DataFrame(recon_list))
 
 with tab_alpha:
-    st.subheader("🌪️ Volume Spike & Cap Search")
+    st.subheader("🌪️ Volume Spike & Institutional Filter")
     
-    # Filter by Cap
-    filtered_df = master_df[master_df['marketcap'] >= min_cap]
-    ticker_options = filtered_df['symbol'].tolist()
+    # MOVED FILTERS HERE FOR MOBILE EASE
+    col1, col2 = st.columns(2)
+    with col1:
+        min_cap = st.number_input("Min Market Cap ($B):", value=1.0, step=0.5) * 1_000_000_000
+    with col2:
+        vol_spike = st.slider("Vol Spike Threshold:", 1.0, 5.0, 1.5)
+
+    # Filtering the 5000+ stock master list
+    filtered_options = master_df[master_df['marketcap'] >= min_cap]['symbol'].tolist()
     
-    picks = st.multiselect("Watchlist:", ticker_options, default=["NVTS", "FIX", "MTZ"])
+    picks = st.multiselect("Watchlist:", filtered_options, default=["NVTS", "FIX", "MTZ"])
     
     if picks:
         raw_data = get_live_metrics(picks)
         results = []
         for p in picks:
             try:
-                # VOLUME SPIKE LOGIC
                 recent_vol = raw_data[p]['Volume'].iloc[-1]
                 avg_vol = raw_data[p]['Volume'].mean()
-                vol_ratio = recent_vol / avg_vol
-                
+                ratio = recent_vol / avg_vol
                 price = raw_data[p]['Close'].iloc[-1]
-                status = "🔥 SPIKING" if vol_ratio > vol_spike_threshold else "Steady"
                 
                 results.append({
                     "Ticker": p, 
                     "Price": f"${price:.2f}", 
-                    "Vol Ratio": f"{vol_ratio:.2f}x",
-                    "Status": status
+                    "Vol Ratio": f"{ratio:.2f}x",
+                    "Status": "🔥 SPIKING" if ratio > vol_spike else "Steady"
                 })
             except: continue
         st.dataframe(pd.DataFrame(results), use_container_width=True)
@@ -93,9 +85,7 @@ with tab_breakout:
         try:
             curr = g_data[g]['Close'].iloc[-1]
             high = g_data[g]['High'].max()
-            dist = (1 - (curr / high)) * 100
-            st.write(f"**{g}**: ${curr:.2f} ({dist:.2f}% from High)")
+            st.write(f"**{g}**: ${curr:.2f} (Targeting ${high:.2f})")
         except: continue
 
-st.divider()
-st.caption(f"Strategy: Exit NVTS (3-4 days). Watch for Volume Spikes > {vol_spike_threshold}x.")
+st.caption(f"Status: Active | Filtering {len(master_df)} Stocks")
