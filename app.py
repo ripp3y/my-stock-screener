@@ -3,28 +3,20 @@ import pandas as pd
 import yfinance as yf
 import sys
 
-# --- [1. RECOVERY BRIDGE] ---
-# Forces the app to recognize 'st' globally to kill the NameError
-global_st = st 
+# --- [1. GLOBAL SAFETY] ---
+if 'st' not in globals():
+    import streamlit as st
 
 # --- [2. TERMINAL CONFIG] ---
-st.set_page_config(page_title="Radar v8.70", layout="wide")
+st.set_page_config(page_title="Radar v8.80", layout="wide")
 
-# --- [3. 60-DAY DATA ENGINE] ---
+# --- [3. DATA ENGINE] ---
 @st.cache_data(ttl=600)
 def get_clean_data(tickers):
     if not tickers: return None
     try:
-        # Period set to '3mo' to ensure we have a full 60 trading days 
-        # Interval '1d' provides the cleanest long-term area charts
-        df = yf.download(
-            tickers=tickers, 
-            period="3mo", 
-            interval="1d", 
-            group_by='ticker', 
-            auto_adjust=True,
-            progress=False
-        )
+        # Standardizing on 3mo/1d for 60-day stability
+        df = yf.download(tickers, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
         return df if not df.empty else None
     except Exception:
         return None
@@ -36,11 +28,11 @@ def highlight_rows(row):
     return [''] * len(row)
 
 # --- [5. HEADER] ---
-st.title("📟 Strategic Terminal v8.70")
-st.caption(f"Engine: Python {sys.version.split()[0]} | View: 60-Day Trend")
+st.title("📟 Strategic Terminal v8.80")
+st.caption(f"Engine: Python {sys.version.split()[0]} | View: 60-Day Core")
 
 # --- [6. TABS] ---
-tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "🚀 BREAKOUTS"])
+tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🔥 VOLUME HEAT", "🚀 BREAKOUTS"])
 
 # --- [TAB 1: RECON] ---
 with tab_recon:
@@ -53,7 +45,7 @@ with tab_recon:
             try:
                 ticker_df = data[t]
                 curr = ticker_df['Close'].iloc[-1]
-                # Calculate the 60-Day Performance (approx 42 trading days ago)
+                # Calculation for 60-day performance
                 start_60 = ticker_df['Close'].iloc[-42] if len(ticker_df) >= 42 else ticker_df['Close'].iloc[0]
                 move_60 = ((curr - start_60) / start_60) * 100
                 
@@ -67,40 +59,49 @@ with tab_recon:
         
         st.table(pd.DataFrame(recon_list).style.apply(highlight_rows, axis=1))
 
-        # 60-DAY DEEP DIVE
         st.divider()
         st.subheader("🔍 60-Day Technical Deep-Dive")
         target = st.selectbox("Select Ticker to Inspect:", portfolio)
         if target in data:
-            # We slice the last 60 days specifically for the chart
-            chart_data = data[target]['Close'].tail(60)
-            st.area_chart(chart_data, color="#00FF00")
+            st.area_chart(data[target]['Close'].tail(60), color="#00FF00")
 
-# --- [TAB 2: ALPHA] ---
+# --- [TAB 2: VOLUME HEAT (ALPHA)] ---
 with tab_alpha:
-    st.subheader("🌪️ Alpha Search")
-    alpha_list = ["ALAB", "CRUS", "VRT"]
+    st.subheader("🔥 Relative Volume (RVOL) Scanner")
+    alpha_list = ["ALAB", "CRUS", "AMSC", "VRT", "SMCI", "NVTS"]
     a_data = get_clean_data(alpha_list)
+    
     if a_data is not None:
-        alpha_rows = []
+        vol_results = []
         for a in alpha_list:
             try:
-                p = a_data[a]['Close'].iloc[-1]
-                alpha_rows.append({"Ticker": a, "Price": f"${p:.2f}", "Status": "🔥 ACTIVE"})
+                # RVOL Logic: Current Volume vs 20-Day Avg Volume
+                # (Simplified for daily data: Today's Vol / Avg Vol)
+                recent_vol = a_data[a]['Volume'].iloc[-1]
+                avg_vol = a_data[a]['Volume'].tail(20).mean()
+                rvol = recent_vol / avg_vol
+                
+                intensity = "Normal"
+                if rvol > 2.0: intensity = "🚨 MASSIVE SPIKE"
+                elif rvol > 1.5: intensity = "🔥 High Inflow"
+                
+                vol_results.append({
+                    "Ticker": a,
+                    "Vol Ratio": f"{rvol:.2fx}",
+                    "Intensity": intensity,
+                    "Price": f"${a_data[a]['Close'].iloc[-1]:.2f}"
+                })
             except: continue
-        st.table(pd.DataFrame(alpha_rows))
+        st.table(pd.DataFrame(vol_results))
+        st.caption("Strategy: Monitoring RVOL for Institutional Exhaustion or Ignition.")
 
 # --- [TAB 3: BREAKOUTS] ---
 with tab_breakout:
-    st.subheader("🚀 60-Day Velocity Check")
+    st.subheader("🚀 60-Day Velocity Monitor")
     if data is not None:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write("**NVTS Trend**")
-            st.area_chart(data["NVTS"]['Close'].tail(60), color="#00FF00")
-        with c2:
-            st.write("**FIX Trend**")
-            st.area_chart(data["FIX"]['Close'].tail(60), color="#00FF00")
+        for lead in ["NVTS", "FIX"]:
+            st.write(f"**{lead} Momentum Trend**")
+            st.area_chart(data[lead]['Close'].tail(60), height=250, color="#00FF00")
 
 st.divider()
-st.caption("v8.70 | 60-Day Pivot Analysis Active.")
+st.caption("v8.80 Core Saved. Focusing on NVTS $19.50 Pivot.")
