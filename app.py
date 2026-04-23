@@ -2,37 +2,34 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import sys
+from datetime import datetime
 
-# --- [1. GLOBAL SAFETY] ---
-if 'st' not in globals():
-    import streamlit as st
+# --- [1. CONFIG] ---
+st.set_page_config(page_title="Radar v9.00", layout="wide")
 
-# --- [2. TERMINAL CONFIG] ---
-st.set_page_config(page_title="Radar v8.90", layout="wide")
-
-# --- [3. DATA ENGINE] ---
+# --- [2. DATA ENGINE] ---
 @st.cache_data(ttl=600)
 def get_clean_data(tickers):
     if not tickers: return None
     try:
-        # Standardizing on 3mo/1d for 60-day visual stability
         df = yf.download(tickers, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
         return df if not df.empty else None
-    except Exception:
-        return None
+    except Exception: return None
 
-# --- [4. UI STYLING] ---
-def highlight_rows(row):
-    if any(t in str(row['Mission Status']) for t in ["⚡", "🔥", "🚀"]):
-        return ['background-color: #00FF00; color: black; font-weight: bold'] * len(row)
-    return [''] * len(row)
+# --- [3. HEADER & COUNTDOWN] ---
+earnings_date = datetime(2026, 5, 5)
+days_to_earnings = (earnings_date - datetime.now()).days
 
-# --- [5. HEADER] ---
-st.title("📟 Strategic Terminal v8.90")
-st.caption(f"Engine: Python {sys.version.split()[0]} | Status: 🟢 CORE ACTIVE")
+st.title("📟 Strategic Terminal v9.00")
+col_info, col_countdown = st.columns([3, 1])
+with col_info:
+    st.caption(f"Engine: Python {sys.version.split()[0]} | Status: 🟢 FULL INTELLIGENCE")
+with col_countdown:
+    # High-visibility countdown for your lead stock
+    st.metric("NVTS Earnings Countdown", f"{days_to_earnings} Days", delta="-1" if days_to_earnings > 0 else "LIVE")
 
-# --- [6. TABS] ---
-tab_recon, tab_crypto, tab_alpha = st.tabs(["📊 RECON", "₿ CRYPTO", "🌪️ ALPHA"])
+# --- [4. TABS] ---
+tab_recon, tab_crypto, tab_solar = st.tabs(["📊 RECON", "₿ CRYPTO & MINERS", "☀️ SOLAR"])
 
 # --- [TAB 1: RECON] ---
 with tab_recon:
@@ -43,62 +40,40 @@ with tab_recon:
         recon_list = []
         for t in portfolio:
             try:
-                ticker_df = data[t]
-                curr = ticker_df['Close'].iloc[-1]
-                # Price Targets Restoration
-                target_20 = curr * 1.20
+                curr = data[t]['Close'].iloc[-1]
                 recon_list.append({
-                    "Ticker": t, 
-                    "Price": f"${curr:.2f}", 
-                    "20% Target": f"${target_20:.2f}",
+                    "Ticker": t, "Price": f"${curr:.2f}", 
+                    "20% Target": f"${curr * 1.20:.2f}",
                     "Mission Status": "🚀 Blue Sky" if t == "NVTS" else "🟢 Steady"
                 })
             except: continue
         
-        st.table(pd.DataFrame(recon_list).style.apply(highlight_rows, axis=1))
-
-        # DIRECT PRO LINKS (Restored from v6.00)
+        st.table(pd.DataFrame(recon_list).style.set_properties(**{'background-color': '#0d0d0d', 'color': '#00FF00'}, subset=['Ticker']))
+        
         st.divider()
-        col_a, col_b = st.columns(2)
-        with col_a:
-            target = st.selectbox("Select Ticker for 60-Day View:", portfolio)
-            st.area_chart(data[target]['Close'].tail(60), color="#00FF00")
-        with col_b:
-            st.write("**External Intelligence**")
-            st.link_button(f"Open {target} Pro Chart", f"https://finance.yahoo.com/quote/{target}/chart")
-            st.link_button("VectorVest Strategy Check", "https://www.vectorvest.com/")
+        target = st.selectbox("Deep-Dive Inspection:", portfolio)
+        st.area_chart(data[target]['Close'].tail(60), color="#00FF00")
 
-# --- [TAB 2: CRYPTO (NEW)] ---
+# --- [TAB 2: CRYPTO & MINERS] ---
 with tab_crypto:
-    st.subheader("₿ Digital Asset Monitor")
-    # BTC is testing $78k today; MARA/IREN are the core miners to watch
-    crypto_tickers = ["BTC-USD", "MARA", "IREN", "RIOT", "WULF"]
-    c_data = get_clean_data(crypto_tickers)
+    st.subheader("₿ Asset Velocity")
+    # MARA and IREN are moving with BTC's $78k test
+    crypto_list = ["BTC-USD", "MARA", "IREN", "WULF"]
+    c_data = get_clean_data(crypto_list)
     
     if c_data is not None:
-        c_list = []
-        for c in crypto_tickers:
-            try:
-                curr = c_data[c]['Close'].iloc[-1]
-                c_list.append({"Asset": c, "Current Price": f"${curr:,.2f}", "Trend": "📈 Bullish Context"})
-            except: continue
-        st.table(pd.DataFrame(c_list))
+        for c in crypto_list:
+            col_c1, col_c2 = st.columns([1, 2])
+            with col_c1:
+                price = c_data[c]['Close'].iloc[-1]
+                st.metric(c, f"${price:,.2f}")
+            with col_c2:
+                st.line_chart(c_data[c]['Close'].tail(30), height=100)
 
-# --- [TAB 3: ALPHA] ---
-with tab_alpha:
-    st.subheader("🌪️ Alpha Scanner: RVOL & Inflow")
-    alpha_list = ["ALAB", "CRUS", "VRT", "SMCI"]
-    a_data = get_clean_data(alpha_list)
-    if a_data is not None:
-        alpha_rows = []
-        for a in alpha_list:
-            try:
-                p = a_data[a]['Close'].iloc[-1]
-                # RVOL Logic (Today's Vol vs 20-Day Average)
-                rvol = a_data[a]['Volume'].iloc[-1] / a_data[a]['Volume'].tail(20).mean()
-                alpha_rows.append({"Ticker": a, "Price": f"${p:.2f}", "RVOL": f"{rvol:.2f}x"})
-            except: continue
-        st.table(pd.DataFrame(alpha_rows))
-
-st.divider()
-st.caption("v8.90 Core | Target: NVTS $19.50 Pivot | BTC Resistance: $78,900")
+# --- [TAB 3: SOLAR] ---
+with tab_solar:
+    st.subheader("☀️ Enphase Monitoring Bridge")
+    st.info("System Ready. Waiting for local Envoy API handshake...")
+    # Placeholder for your local energy metrics
+    st.metric("Today's Production", "0.0 kWh", delta="0%")
+    st.caption("Monitoring Zeo Energy installation at Galax property.")
