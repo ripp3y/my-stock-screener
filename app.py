@@ -2,58 +2,73 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-# 1. SETUP - Must be first to avoid NameError
-st.set_page_config(page_title="Radar v6.20", layout="wide")
+# --- [1. CONFIG] ---
+st.set_page_config(page_title="Radar v6.30", layout="wide")
 
-# 2. DATA (Using yfinance 0.2.64 as per your requirements)
-@st.cache_data(ttl=600)
-def pull_tactical_data(tickers):
-    return yf.download(tickers, period="2d", interval="1h", group_by='ticker', progress=False)
+# --- [2. DATA LOADER] ---
+@st.cache_data(ttl=300) # Faster refresh for live volume
+def get_alpha_metrics(tickers):
+    return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
 
-# 3. HEADER
-st.title("📡 Radar v6.20: Strategic Core")
+# --- [3. STYLING: HEAT MAP LOGIC] ---
+def volume_heat_map(row):
+    # If Volume is 2.5x the 5-day average, it's an Institutional Spike
+    try:
+        ratio = float(row['Vol Ratio'].replace('x', ''))
+        if ratio >= 2.5:
+            return ['background-color: #00FF00; color: black; font-weight: bold'] * len(row)
+        elif ratio >= 1.5:
+            return ['background-color: #ADFF2F; color: black'] * len(row) # Lime Green
+    except: pass
+    return [''] * len(row)
 
-# 4. RECON TAB (Restoring the Green Highlight you liked)
-tab1, tab2 = st.tabs(["📊 RECON", "🌪️ ALPHA"])
+# --- [4. UI HEADER] ---
+st.title("📡 Radar v6.30: Institutional Heat Map")
 
-with tab1:
+tab_recon, tab_heat = st.tabs(["📊 RECON", "🌪️ VOLUME HEAT"])
+
+with tab_recon:
+    # Restoring the clean v5.7 style for your core portfolio
     portfolio = ["NVTS", "FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
-    raw_data = pull_tactical_data(portfolio)
+    data = get_alpha_metrics(portfolio)
     
-    recon_rows = []
+    recon_list = []
     for t in portfolio:
         try:
-            curr = raw_data[t]['Close'].iloc[-1]
-            prev = raw_data[t]['Close'].iloc[-5] # ~24h ago in trading hours
-            move = ((curr - prev) / prev) * 100
+            curr = data[t]['Close'].iloc[-1]
+            vol = data[t]['Volume'].iloc[-1]
+            avg_vol = data[t]['Volume'].mean()
+            ratio = vol / avg_vol
             
-            status = "🔥 SPIKING" if move > 3 else "Steady"
-            if t == "NVTS": status = "⚡ Hyper-Growth"
-
-            recon_rows.append({
+            recon_list.append({
                 "Ticker": t,
                 "Price": f"${curr:.2f}",
-                "24h Move": f"{move:+.2f}%",
-                "Mission Status": status
+                "Vol Ratio": f"{ratio:.2f}x",
+                "Mission Status": "⚡ Hyper-Growth" if t == "NVTS" else "Scanning"
             })
         except: continue
-
-    df = pd.DataFrame(recon_rows)
     
-    # Restore the "Bright Green" Styling logic
-    def color_rows(row):
-        if "Hyper-Growth" in row['Mission Status'] or "SPIKING" in row['Mission Status']:
-            return ['background-color: #00FF00; color: black; font-weight: bold'] * len(row)
-        return [''] * len(row)
+    st.table(pd.DataFrame(recon_list).style.apply(volume_heat_map, axis=1))
 
-    st.table(df.style.apply(color_rows, axis=1))
+with tab_heat:
+    st.subheader("🌪️ Alpha Scanner: Institutional Spikes")
+    # Expanding to see where the rest of the market is moving
+    market_leads = ["ALAB", "CRUS", "AMSC", "VRT", "SMCI", "NVTS"]
+    lead_data = get_alpha_metrics(market_leads)
+    
+    heat_list = []
+    for l in market_leads:
+        try:
+            v_curr = lead_data[l]['Volume'].iloc[-1]
+            v_avg = lead_data[l]['Volume'].mean()
+            v_ratio = v_curr / v_avg
+            heat_list.append({
+                "Ticker": l,
+                "Vol Ratio": f"{v_ratio:.2f}x",
+                "Intensity": "HIGH" if v_ratio > 2.0 else "Normal"
+            })
+        except: continue
+    
+    st.table(pd.DataFrame(heat_list).style.apply(volume_heat_map, axis=1))
 
-    # CHART TRIGGER - Direct link to avoid Streamlit buffering
-    st.write("### 📈 Tactical Charts")
-    selected_chart = st.selectbox("Select Ticker for Deep Recon:", portfolio)
-    st.link_button(f"Open {selected_chart} Live Chart", f"https://finance.yahoo.com/quote/{selected_chart}/chart")
-
-with tab2:
-    st.subheader("Alpha Scanner")
-    st.write("Searching for volume anomalies...")
-    # Add your Alpha Filter logic here
+st.caption("Strategy: v6.30 Core. Monitoring NVTS Volume Ratio for Institutional Exhaustion.")
