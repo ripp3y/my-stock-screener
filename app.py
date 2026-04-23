@@ -4,7 +4,7 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="Radar v9.80", layout="wide")
+st.set_page_config(page_title="Radar v9.90", layout="wide")
 
 # --- [2. DATA ENGINE] ---
 @st.cache_data(ttl=600)
@@ -18,8 +18,8 @@ def get_clean_data(tickers):
 # --- [3. HEADER] ---
 target_date = datetime(2026, 5, 5)
 days_left = (target_date - datetime.now()).days
-st.title("📟 Strategic Terminal v9.80")
-st.metric("NVTS Earnings Countdown", f"{max(0, days_left)} Days")
+st.title("📟 Strategic Terminal v9.90")
+st.caption("Status: 🟢 COLOR ENGINE LOCKED")
 
 # --- [4. TABS] ---
 tab_recon, tab_crypto, tab_heatmap = st.tabs(["📊 RECON", "₿ CRYPTO", "🔥 HEAT MAP"])
@@ -47,15 +47,19 @@ with tab_crypto:
             st.metric(c, f"${c_data[c]['Close'].iloc[-1]:,.2f}")
             st.area_chart(c_data[c]['Close'].tail(60), height=140, color="#FF9900" if "BTC" in c else "#00FF00")
 
-# --- [TAB 3: HEAT MAP - THE NATIVE FIX] ---
+# --- [TAB 3: HEAT MAP - COLOR-LOCK FIX] ---
 with tab_heatmap:
     st.subheader("🔥 Institutional Volume (RVOL)")
+    
+    # --- TEST BUTTON: Force red/green to prove they work on your phone ---
+    if st.button("🧪 RUN COLOR TEST"):
+        st.error("RED TEST: If you see this, Red is working.")
+        st.success("GREEN TEST: If you see this, Green is working.")
+    
     h_tickers = ["NVTS", "FIX", "MRVL", "ALAB", "CRUS", "VRT", "SMCI"]
     h_data = get_clean_data(h_tickers)
     
     if h_data is not None:
-        # Instead of a table that might break, we use native "Columns"
-        # This is guaranteed to work on every phone.
         st.write("---")
         for h in h_tickers:
             try:
@@ -63,23 +67,20 @@ with tab_heatmap:
                 price = h_data[h]['Close'].iloc[-1]
                 
                 col_t, col_v, col_p = st.columns([1, 2, 1])
-                
                 with col_t:
-                    st.write(f"**{h}**")
-                
+                    st.markdown(f"**{h}**")
                 with col_v:
-                    # Native Streamlit color boxes (Red/Green)
+                    # Using Badges for better mobile visibility
                     if rvol > 2.2:
-                        st.error(f"🚨 EXTREME: {rvol:.2f}x")
+                        st.badge(f"EXTREME: {rvol:.2f}x", color="red", icon="🚨")
                     elif rvol > 1.5:
-                        st.success(f"🔥 HIGH: {rvol:.2f}x")
+                        st.badge(f"HIGH: {rvol:.2f}x", color="green", icon="🔥")
                     else:
-                        st.info(f"Normal: {rvol:.2f}x")
-                
+                        st.badge(f"Normal: {rvol:.2f}x", color="gray")
                 with col_p:
                     st.write(f"${price:.2f}")
-                st.write("---") # Thin separator line
+                st.write("---")
             except: continue
 
 st.divider()
-st.caption("v9.80 | Using Native Status Elements for Mobile Stability")
+st.caption(f"v9.90 | NVTS Countdown: {max(0, days_left)} Days | Wytheville Hub")
