@@ -4,19 +4,21 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="Radar v10.4", layout="wide")
+st.set_page_config(page_title="Radar v10.5", layout="wide")
 
-# --- [2. DATA ENGINE - HARDENED FOR MOBILE] ---
+# --- [2. HARDENED DATA ENGINE] ---
 @st.cache_data(ttl=300)
 def get_clean_data(tickers):
     try:
-        # We download and then immediately 'stack' the data to fix the MultiIndex error
-        raw = yf.download(tickers, period="6mo", interval="1d", auto_adjust=True, progress=False)
-        if raw.empty: return None
-        
-        # This 'stacks' the tickers into a single clean column
-        df = raw.stack(level=1, future_stack=True).reset_index()
-        df.columns = ['Date', 'Ticker', 'Close', 'High', 'Low', 'Open', 'Volume']
+        # multi_level_index=False is the specific fix for the ',2f' error
+        df = yf.download(
+            tickers=tickers, 
+            period="6mo", 
+            interval="1d", 
+            multi_level_index=False, 
+            auto_adjust=True, 
+            progress=False
+        )
         return df
     except: return None
 
@@ -24,8 +26,8 @@ def get_clean_data(tickers):
 target_date = datetime(2026, 5, 5)
 days_left = (target_date - datetime.now()).days
 
-st.title("📟 Strategic Terminal v10.4")
-st.caption("Engine: v10.4 Ironclad | Wytheville Hub | Fix: MultiIndex Stack")
+st.title("📟 Strategic Terminal v10.5")
+st.caption("Engine: v10.5 Ironclad | Fix: multi_level_index=False")
 st.metric("NVTS Earnings Countdown", f"{max(0, days_left)} Days")
 
 # --- [4. TABS] ---
@@ -36,13 +38,13 @@ with tab_recon:
     portfolio = ["NVTS", "FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
     data = get_clean_data(portfolio)
     
-    if data is not None:
+    if data is not None and not data.empty:
         recon_list = []
         for t in portfolio:
             try:
-                # Filter for just this ticker and get the last row
-                t_row = data[data['Ticker'] == t].iloc[-1]
-                price = float(t_row['Close'])
+                # In flat mode, columns are simply 'Ticker'
+                # We pull the very last price and force it to a float
+                price = float(data[t].dropna().iloc[-1])
                 
                 recon_list.append({
                     "Ticker": t,
@@ -53,45 +55,39 @@ with tab_recon:
         
         st.table(pd.DataFrame(recon_list))
         st.divider()
-        # Chart uses the filtered dataframe for NVTS
-        nvts_chart = data[data['Ticker'] == "NVTS"].set_index('Date')['Close'].tail(60)
-        st.area_chart(nvts_chart, color="#00FF00")
+        # Chart for the lead ticker
+        st.area_chart(data["NVTS"].tail(60), color="#00FF00")
 
 # --- [TAB 2: CRYPTO] ---
 with tab_crypto:
     c_list = ["BTC-USD", "MARA", "IREN", "WULF"]
     c_data = get_clean_data(c_list)
     
-    if c_data is not None:
+    if c_data is not None and not c_data.empty:
         for c in c_list:
             try:
-                c_row = c_data[c_data['Ticker'] == c].iloc[-1]
-                c_price = float(c_row['Close'])
-                st.metric(c, f"${c_price:,.2f}") # This will now work perfectly
-                
-                c_chart = c_data[c_data['Ticker'] == c].set_index('Date')['Close'].tail(60)
-                st.area_chart(c_chart, height=140, color="#FF9900" if "BTC" in c else "#00FF00")
+                price = float(c_data[c].dropna().iloc[-1])
+                st.metric(c, f"${price:,.2f}")
+                st.area_chart(c_data[c].tail(60), height=140, color="#FF9900" if "BTC" in c else "#00FF00")
             except: continue
 
 # --- [TAB 3: HEAT MAP] ---
 with tab_heatmap:
-    st.subheader("🔥 Institutional Volume (RVOL)")
-    h_tickers = ["NVTS", "FIX", "MRVL", "ALAB", "CRUS", "VRT", "SMCI"]
-    h_data = get_clean_data(h_tickers)
+    st.subheader("🔥 Volume Relative to 20D Avg")
+    # We download volume separately to keep the logic clean
+    v_data = yf.download(portfolio, period="1mo", multi_level_index=False, progress=False)['Volume']
     
-    if h_data is not None:
-        for h in h_tickers:
+    if v_data is not None:
+        for t in portfolio:
             try:
-                h_rows = h_data[h_data['Ticker'] == h]
-                v_now = float(h_rows['Volume'].iloc[-1])
-                v_avg = float(h_rows['Volume'].tail(20).mean())
+                v_now = float(v_data[t].iloc[-1])
+                v_avg = float(v_data[t].tail(20).mean())
                 rvol = v_now / v_avg
                 
-                col1, col2 = st.columns([1, 2])
-                col1.write(f"**{h}**")
-                # Using standard markdown colors for maximum mobile stability
+                c1, c2 = st.columns([1, 2])
+                c1.write(f"**{t}**")
                 if rvol > 1.5:
-                    col2.markdown(f":green[**HIGH: {rvol:.2f}x**]")
+                    c2.success(f"HIGH: {rvol:.2f}x")
                 else:
-                    col2.markdown(f"Normal: {rvol:.2f}x")
+                    c2.info(f"Normal: {rvol:.2f}x")
             except: continue
