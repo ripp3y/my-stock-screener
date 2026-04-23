@@ -4,18 +4,18 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="Radar v11.0", layout="wide")
+st.set_page_config(page_title="Radar v11.1", layout="wide")
 
-# --- [2. STEALTH DATA ENGINE] ---
+# --- [2. LIGHTWEIGHT DATA ENGINE] ---
 @st.cache_data(ttl=600)
-def get_stealth_data(ticker):
+def get_verified_data(ticker):
+    """Simplified fetch to avoid needing advanced math modules like scipy."""
     try:
-        # We manually fetch with a browser-like identity to avoid being blocked
-        ticker_obj = yf.Ticker(ticker)
-        # Using fast_info or history to get the most reliable data points
-        df = ticker_obj.history(period="6mo", interval="1d", auto_adjust=True)
-        
+        # We fetch only the bare essentials to stay under the radar
+        df = yf.download(ticker, period="6mo", interval="1d", auto_adjust=True, progress=False)
         if df is not None and not df.empty and 'Close' in df.columns:
+            # Flatten columns just in case Yahoo sends a multi-index
+            df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
             return df
         return None
     except:
@@ -24,8 +24,8 @@ def get_stealth_data(ticker):
 # --- [3. HEADER] ---
 target_date = datetime(2026, 5, 5)
 days_left = (target_date - datetime.now()).days
-st.title("📟 Strategic Terminal v11.0")
-st.caption("Engine: v11.0 Stealth | Fix: Connection Throttling | Hub: Galax")
+st.title("📟 Strategic Terminal v11.1")
+st.caption("Engine: v11.1 Lite | Fix: Scipy Dependency Bypass | Hub: Galax")
 st.metric("NVTS Earnings Countdown", f"{max(0, days_left)} Days")
 
 # --- [4. TABS] ---
@@ -34,60 +34,59 @@ tab_recon, tab_crypto, tab_heatmap = st.tabs(["📊 RECON", "₿ CRYPTO", "🔥 
 # --- [TAB 1: RECON] ---
 with tab_recon:
     portfolio = ["NVTS", "FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
-    recon_list = []
+    recon_data = []
     
-    # Progress bar to show the phone is working
-    progress_text = "Scanning Markets..."
-    my_bar = st.progress(0, text=progress_text)
-    
-    for i, t in enumerate(portfolio):
-        data = get_stealth_data(t)
-        my_bar.progress((i + 1) / len(portfolio), text=f"Fetching {t}...")
-        
-        if data is not None:
-            try:
-                curr_p = float(data['Close'].iloc[-1])
-                avg_20 = data['Close'].tail(20).mean()
-                recon_list.append({
-                    "Ticker": t,
-                    "Price": f"${curr_p:.2f}",
-                    "20% Target": f"${curr_p * 1.20:.2f}",
-                    "Status": "🟢 TRENDING" if curr_p > avg_20 else "🟡 STABLE"
-                })
-            except: continue
-    my_bar.empty()
+    with st.status("📡 Establishing Secure Connection...", expanded=False) as status:
+        for t in portfolio:
+            st.write(f"Checking {t}...")
+            data = get_verified_data(t)
+            if data is not None:
+                try:
+                    curr_p = float(data['Close'].iloc[-1])
+                    # Manual math to avoid using 'rolling' or 'mean' if it triggers scipy
+                    prices = data['Close'].tail(20).tolist()
+                    avg_20 = sum(prices) / len(prices)
+                    
+                    recon_data.append({
+                        "Ticker": t,
+                        "Price": f"${curr_p:.2f}",
+                        "20% Target": f"${curr_p * 1.20:.2f}",
+                        "Signal": "🟢 BULL" if curr_p > avg_20 else "🟡 NEUTRAL"
+                    })
+                except: continue
+        status.update(label="✅ Connection Stable", state="complete")
 
-    if recon_list:
-        st.table(pd.DataFrame(recon_list))
+    if recon_data:
+        st.table(pd.DataFrame(recon_data))
         st.divider()
-        nvts_data = get_stealth_data("NVTS")
+        nvts_data = get_verified_data("NVTS")
         if nvts_data is not None:
-            st.area_chart(nvts_data['Close'].tail(60), color="#00FF00")
+            st.line_chart(nvts_data['Close'].tail(60), color="#00FF00")
     else:
-        st.warning("⚠️ Yahoo Connection Throttled. The server is waiting for a clear signal. Please wait 60 seconds and refresh.")
+        st.error("🔄 Data stream interrupted. Please refresh in 15 seconds.")
 
 # --- [TAB 2: CRYPTO] ---
 with tab_crypto:
     crypto_list = ["BTC-USD", "MARA", "IREN", "WULF"]
     for c in crypto_list:
-        c_data = get_stealth_data(c)
+        c_data = get_verified_data(c)
         if c_data is not None:
-            try:
-                c_price = float(c_data['Close'].iloc[-1])
-                st.metric(c, f"${c_price:,.2f}")
-                st.area_chart(c_data['Close'].tail(60), height=140, color="#FF9900" if "BTC" in c else "#00FF00")
-            except: continue
+            c_price = float(c_data['Close'].iloc[-1])
+            st.metric(c, f"${c_price:,.2f}")
+            st.area_chart(c_data['Close'].tail(45), height=140, color="#FF9900" if "BTC" in c else "#00FF00")
 
 # --- [TAB 3: HEAT MAP] ---
 with tab_heatmap:
     st.subheader("🔥 RVOL Institutional Monitor")
     h_tickers = ["NVTS", "FIX", "MRVL", "ALAB", "CRUS", "VRT", "SMCI"]
+    
     for h in h_tickers:
-        h_data = get_stealth_data(h)
+        h_data = get_verified_data(h)
         if h_data is not None:
             try:
                 v_now = float(h_data['Volume'].iloc[-1])
-                v_avg = float(h_data['Volume'].tail(20).mean())
+                v_list = h_data['Volume'].tail(20).tolist()
+                v_avg = sum(v_list) / len(v_list)
                 rvol = v_now / v_avg
                 
                 c1, c2 = st.columns([1, 2])
