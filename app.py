@@ -4,41 +4,26 @@ import yfinance as yf
 from datetime import datetime
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="Radar v10.2", layout="wide")
+st.set_page_config(page_title="Radar v10.3", layout="wide")
 
-# --- [2. SIGNAL ENGINE] ---
-def get_technical_signal(ticker_df):
-    try:
-        # Extract only the Close column and flatten it to avoid Format Errors
-        close_series = ticker_df['Close'].astype(float)
-        
-        sma8 = close_series.rolling(window=8).mean()
-        sma21 = close_series.rolling(window=21).mean()
-        
-        curr_8, curr_21 = sma8.iloc[-1], sma21.iloc[-1]
-        prev_8, prev_21 = sma8.iloc[-2], sma21.iloc[-2]
-        
-        if curr_8 > curr_21 and prev_8 <= prev_21: return "🔥 BUY SIGNAL"
-        elif curr_8 < curr_21 and prev_8 >= prev_21: return "⚠️ SELL SIGNAL"
-        elif curr_8 > curr_21: return "🟢 BULLISH"
-        else: return "🔴 BEARISH"
-    except:
-        return "⚖️ NEUTRAL"
-
-# --- [3. DATA ENGINE] ---
+# --- [2. DATA ENGINE - HARDENED] ---
 @st.cache_data(ttl=300)
 def get_clean_data(tickers):
     try:
-        # Download with auto_adjust=True to flatten price columns
-        df = yf.download(tickers, period="6mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
+        # auto_adjust=True and actions=False keeps the data structure flat
+        df = yf.download(tickers, period="6mo", interval="1d", auto_adjust=True, progress=False)
         return df
     except: return None
 
-# --- [4. HEADER] ---
-st.title("📟 Strategic Terminal v10.2")
-st.caption("Fix: Explicit Float Conversion | Engine: v10.2 Core")
+# --- [3. HEADER] ---
+target_date = datetime(2026, 5, 5)
+days_to_earnings = (target_date - datetime.now()).days
 
-# --- [5. TABS] ---
+st.title("📟 Strategic Terminal v10.3")
+st.caption("Engine: v10.3 | Wytheville Hub | Fix: Zero-Format Crash")
+st.metric("NVTS Earnings", f"{max(0, days_to_earnings)} Days")
+
+# --- [4. TABS] ---
 tab_recon, tab_crypto, tab_heatmap = st.tabs(["📊 RECON", "₿ CRYPTO", "🔥 HEAT MAP"])
 
 # --- [TAB 1: RECON] ---
@@ -50,19 +35,21 @@ with tab_recon:
         recon_list = []
         for t in portfolio:
             try:
-                # Ensure we have a clean slice of data for the ticker
-                t_df = data[t].dropna()
-                curr_p = float(t_df['Close'].iloc[-1]) # Force to float here
-                sig = get_technical_signal(t_df)
+                # Force extraction of exactly one price as a number
+                # This prevents the ',2f' format error on your phone
+                raw_price = data['Close'][t].dropna().iloc[-1]
+                price = float(raw_price) 
                 
                 recon_list.append({
                     "Ticker": t,
-                    "Price": f"${curr_p:.2f}",
-                    "20% Target": f"${curr_p * 1.20:.2f}",
-                    "Signal": sig
+                    "Price": f"${price:.2f}",
+                    "20% Target": f"${price * 1.20:.2f}"
                 })
             except: continue
+        
         st.table(pd.DataFrame(recon_list))
+        st.divider()
+        st.area_chart(data['Close']["NVTS"].tail(60), color="#00FF00")
 
 # --- [TAB 2: CRYPTO] ---
 with tab_crypto:
@@ -71,28 +58,29 @@ with tab_crypto:
     if c_data is not None:
         for c in c_list:
             try:
-                price = float(c_data[c]['Close'].iloc[-1])
-                st.metric(c, f"${price:,.2f}") # comma for thousands
-                st.area_chart(c_data[c]['Close'].tail(60), height=150)
+                c_price = float(c_data['Close'][c].dropna().iloc[-1])
+                st.metric(c, f"${c_price:,.2f}") # Force-casted to single float
+                st.area_chart(c_data['Close'][c].tail(60), height=140)
             except: continue
 
 # --- [TAB 3: HEAT MAP] ---
 with tab_heatmap:
-    st.subheader("🔥 Institutional RVOL")
+    st.subheader("🔥 Institutional Volume (RVOL)")
     h_tickers = ["NVTS", "FIX", "MRVL", "ALAB", "CRUS", "VRT", "SMCI"]
     h_data = get_clean_data(h_tickers)
     
     if h_data is not None:
         for h in h_tickers:
             try:
-                vol_now = float(h_data[h]['Volume'].iloc[-1])
-                vol_avg = float(h_data[h]['Volume'].tail(20).mean())
-                rvol = vol_now / vol_avg
+                v_now = float(h_data['Volume'][h].iloc[-1])
+                v_avg = float(h_data['Volume'][h].tail(20).mean())
+                rvol = v_now / v_avg
                 
-                col1, col2 = st.columns([1, 2])
-                col1.write(f"**{h}**")
+                c1, c2 = st.columns([1, 2])
+                c1.write(f"**{h}**")
+                # Using simple text colors to avoid library errors
                 if rvol > 1.5:
-                    col2.success(f"HIGH: {rvol:.2f}x")
+                    c2.markdown(f":green[**HIGH: {rvol:.2f}x**]")
                 else:
-                    col2.info(f"Normal: {rvol:.2f}x")
+                    c2.markdown(f"Normal: {rvol:.2f}x")
             except: continue
