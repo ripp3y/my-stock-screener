@@ -2,26 +2,26 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-# --- [1. CONFIG MUST BE FIRST] ---
-st.set_page_config(page_title="Radar v6.00", layout="wide")
+# --- [1. CONFIG] ---
+st.set_page_config(page_title="Radar v7.00", layout="wide")
 
-# --- [2. DATA LOADERS] ---
-@st.cache_data(ttl=3600)
-def get_live_metrics(tickers):
+# --- [2. DATA LOADER] ---
+@st.cache_data(ttl=300)
+def get_terminal_data(tickers):
     if not tickers: return None
-    # Pulling hourly data to ensure the '24h move' is pinpoint accurate
+    # Fetching 5 days of hourly data for smooth charts and accurate 24h moves
     return yf.download(tickers, period="5d", interval="1h", group_by='ticker', progress=False)
 
 # --- [3. STYLING LOGIC] ---
-def highlight_velocity(row):
-    # This restores the "Bright Green" glow for high-momentum tickers
-    triggers = ["⚡ Hyper-Growth", "🔥 Institutional Spiking", "🚀 Blue Sky Breakout"]
-    if any(trigger in str(row['Mission Status']) for trigger in triggers):
+def apply_mission_style(row):
+    # Restoring the Bright Green glow for your priority movers
+    priority_triggers = ["⚡ Hyper-Growth", "🔥 Institutional Spiking", "🚀 Blue Sky Breakout"]
+    if any(trigger in str(row['Mission Status']) for trigger in priority_triggers):
         return ['background-color: #00FF00; color: black; font-weight: bold'] * len(row)
     return [''] * len(row)
 
 # --- [4. UI HEADER] ---
-st.title("📡 Radar v6.00: Strategic Terminal")
+st.title("📟 Strategic Terminal v7.00")
 st.markdown("---")
 
 # --- [5. TABS RESTORED] ---
@@ -29,12 +29,10 @@ tab_recon, tab_alpha, tab_breakout = st.tabs(["📊 RECON", "🌪️ ALPHA", "�
 
 # --- [TAB 1: RECON] ---
 with tab_recon:
-    st.subheader("Tactical Portfolio (Clean View)")
     portfolio = ["NVTS", "FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
-    data = get_live_metrics(portfolio)
+    data = get_terminal_data(portfolio)
     
-    recon_list = []
-    # Restoring your specific Emoji Tiers
+    # Status Tiers mapped from your preferred v6.00 screenshots
     status_map = {
         "NVTS": "⚡ Hyper-Growth",
         "FIX": "🔥 Institutional Spiking",
@@ -45,47 +43,57 @@ with tab_recon:
         "CIEN": "🟡 Healthy Consolidation"
     }
 
+    recon_list = []
     for t in portfolio:
         try:
+            # Pricing & Move Logic
             curr = data[t]['Close'].iloc[-1]
-            prev_close = data[t]['Close'].iloc[-8] # Approx 24h ago
-            move = ((curr - prev_close) / prev_close) * 100
+            prev = data[t]['Close'].iloc[-8] 
+            move = ((curr - prev) / prev) * 100
             
             recon_list.append({
                 "Ticker": t,
-                "Current Price": f"${curr:.2f}",
+                "Price": f"${curr:.2f}",
                 "24h Move": f"{move:+.2f}%",
                 "20% Target": f"${curr * 1.20:.2f}",
                 "Mission Status": status_map.get(t, "Scanning...")
             })
         except: continue
     
-    df_recon = pd.DataFrame(recon_list)
-    if not df_recon.empty:
-        # st.table is used here because it renders perfectly on mobile
-        st.table(df_recon.style.apply(highlight_velocity, axis=1))
+    # Render the styled table
+    st.table(pd.DataFrame(recon_list).style.apply(apply_mission_style, axis=1))
+
+    # --- NEW LIGHTWEIGHT CHART SECTION ---
+    st.markdown("### 📈 Quick-Look Technicals")
+    selected = st.selectbox("Select Stone to Inspect:", portfolio)
+    if selected in data:
+        # Area chart is much faster than Plotly/Candlesticks for mobile
+        chart_data = data[selected]['Close']
+        st.area_chart(chart_data, color="#00FF00" if selected in ["NVTS", "FIX"] else "#1E90FF")
+        st.link_button(f"Open Full {selected} Pro Chart", f"https://finance.yahoo.com/quote/{selected}/chart")
 
 # --- [TAB 2: ALPHA] ---
 with tab_alpha:
     st.subheader("🌪️ Relative Volume Scanner")
     alpha_watchlist = ["ALAB", "CRUS", "AMSC", "FLR", "VRT", "SMCI"]
-    alpha_data = get_live_metrics(alpha_watchlist)
+    alpha_data = get_terminal_data(alpha_watchlist)
     
-    alpha_results = []
+    alpha_rows = []
     for a in alpha_watchlist:
         try:
-            price = alpha_data[a]['Close'].iloc[-1]
-            alpha_results.append({"Ticker": a, "Price": f"${price:.2f}", "Status": "🔥 SCANNING"})
+            curr_a = alpha_data[a]['Close'].iloc[-1]
+            alpha_rows.append({"Ticker": a, "Price": f"${curr_a:.2f}", "Status": "🔥 SCANNING"})
         except: continue
-    st.table(pd.DataFrame(alpha_results))
+    st.table(pd.DataFrame(alpha_rows))
 
 # --- [TAB 3: BREAKOUTS] ---
 with tab_breakout:
-    st.subheader("🚀 High-Velocity Watch")
-    leads = ["NVTS", "FIX", "ALAB", "CRUS"]
-    for l in leads:
-        st.write(f"**{l}**: Institutional Momentum Active.")
-        st.link_button(f"View {l} Chart", f"https://finance.yahoo.com/quote/{l}/chart")
+    st.subheader("🚀 High-Velocity Monitor")
+    for lead in ["NVTS", "FIX", "ALAB"]:
+        st.markdown(f"**{lead}**: Institutional Momentum Active.")
+        # Lightweight Sparkline-style chart for breakouts
+        if lead in data:
+            st.line_chart(data[lead]['Close'], height=150)
 
 st.markdown("---")
-st.caption("v6.00 Baseline: Targets based on 100% YoY goal. Focusing on NVTS $22 exit.")
+st.caption("v7.00 Performance Baseline | Target: 100% YoY")
