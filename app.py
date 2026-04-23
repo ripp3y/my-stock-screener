@@ -9,14 +9,14 @@ if 'st' not in globals():
     import streamlit as st
 
 # --- [2. CONFIG] ---
-st.set_page_config(page_title="Radar v9.10", layout="wide")
+st.set_page_config(page_title="Radar v9.20", layout="wide")
 
 # --- [3. DATA ENGINE] ---
 @st.cache_data(ttl=600)
 def get_clean_data(tickers):
     if not tickers: return None
     try:
-        # Standardized on 3mo/1d for 60-day stability across all tabs
+        # Standardized on 3mo/1d for 60-day visual stability across all tabs
         df = yf.download(tickers, period="3mo", interval="1d", group_by='ticker', auto_adjust=True, progress=False)
         return df if not df.empty else None
     except Exception: return None
@@ -31,7 +31,7 @@ def highlight_rows(row):
 earnings_date = datetime(2026, 5, 5)
 days_to_earnings = (earnings_date - datetime.now()).days
 
-st.title("📟 Strategic Terminal v9.10")
+st.title("📟 Strategic Terminal v9.20")
 col_info, col_countdown = st.columns([3, 1])
 with col_info:
     st.caption(f"Engine: Python {sys.version.split()[0]} | View: 60-Day Scaled")
@@ -61,7 +61,7 @@ with tab_recon:
         st.table(pd.DataFrame(recon_list).style.apply(highlight_rows, axis=1))
         
         st.divider()
-        target = st.selectbox("Deep-Dive Inspection:", portfolio)
+        target = st.selectbox("Deep-Dive Inspection (60-Day):", portfolio)
         st.area_chart(data[target]['Close'].tail(60), color="#00FF00")
 
 # --- [TAB 2: CRYPTO SCALED] ---
@@ -80,7 +80,7 @@ with tab_crypto:
                 move_60 = ((price - start_60) / start_60) * 100
                 st.metric(c, f"${price:,.2f}", f"{move_60:+.2f}% (60d)")
             with col_c2:
-                # Scaled out chart
+                # Scaled out 60-day chart
                 st.area_chart(c_data[c]['Close'].tail(60), height=150, color="#FF9900" if "BTC" in c else "#00FF00")
 
 # --- [TAB 3: HEAT MAP] ---
@@ -93,27 +93,26 @@ with tab_heatmap:
         heat_rows = []
         for h in all_tickers:
             try:
-                # RVOL Calculation
+                # RVOL Calculation: Today's Volume vs 20-Day Average
                 recent_vol = h_data[h]['Volume'].iloc[-1]
                 avg_vol = h_data[h]['Volume'].tail(20).mean()
                 rvol = recent_vol / avg_vol
                 
-                # Performance
-                curr_p = h_data[h]['Close'].iloc[-1]
-                prev_p = h_data[h]['Close'].iloc[-2]
-                day_move = ((curr_p - prev_p) / prev_p) * 100
+                # Intensity Logic
+                intensity = "🚨 EXTREME" if rvol > 2.5 else "🔥 HIGH" if rvol > 1.5 else "Normal"
                 
                 heat_rows.append({
                     "Ticker": h,
-                    "RVOL": f"{rvol:.2f}x",
-                    "Daily %": f"{day_move:+.2f}%",
-                    "Intensity": "🚨 EXTREME" if rvol > 2.5 else "🔥 HIGH" if rvol > 1.5 else "Normal"
+                    "RVOL": rvol,
+                    "Intensity": intensity,
+                    "Price": f"${h_data[h]['Close'].iloc[-1]:.2f}"
                 })
             except: continue
         
-        # Display as a styled table for high-intensity visual
+        # Display as a styled table with visual gradient for intensity
         df_heat = pd.DataFrame(heat_rows)
-        st.table(df_heat.style.background_gradient(cmap='Greens', subset=['RVOL']))
+        st.table(df_heat.style.background_gradient(cmap='Greens', subset=['RVOL']).format({"RVOL": "{:.2f}x"}))
+        st.caption("Monitoring institutional inflow. RVOL > 1.5x suggests smart money activity.")
 
 st.divider()
-st.caption("v9.10 | Core Intelligence Saved | BTC Target: $82,000 Support Flip")
+st.caption("v9.20 Core Saved. BTC $82k Support Flip in progress.")
