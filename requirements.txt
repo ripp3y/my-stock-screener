@@ -2,3 +2,4 @@ yfinance>=0.2.64
 streamlit>=1.56.0 
 pandas
 plotly
+matplotlib
