@@ -4,7 +4,7 @@ import pandas as pd
 
 # 🛡️ SOVEREIGN CONFIGURATION
 st.set_page_config(page_title="Strategic US Terminal", layout="wide", initial_sidebar_state="collapsed")
-st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.9 | April 24, 2026 | Headline Tape Active</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v3.0 | April 24, 2026 | 6-Month Horizon Active</p>", unsafe_allow_html=True)
 
 # 🛠️ THE ARCHITECT RECON (SIDEBAR)
 with st.sidebar:
@@ -26,21 +26,20 @@ with st.sidebar:
 st.title(f"Strategic Terminal: {ticker}")
 
 try:
-    # Fetching Data (5d window to ensure we have previous close for delta)
-    data = yf.download(ticker, period="5d", interval="1d")
-    comp_data = yf.download(comp_ticker, period="5d", interval="1d")
+    # UPDATED: Pulling 6 months to see the macro-cycle better
+    data = yf.download(ticker, period="6mo", interval="1d")
+    comp_data = yf.download(comp_ticker, period="6mo", interval="1d")
     
     if not data.empty:
-        # Standardize Columns
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
         if isinstance(comp_data.columns, pd.MultiIndex):
             comp_data.columns = comp_data.columns.get_level_values(0)
 
-        # 📊 HEADLINE TAPE (Price & % Change)
+        # 📊 HEADLINE TAPE (The "Big Font" Metrics)
         col1, col2 = st.columns(2)
         
-        # --- Primary Metric Calculation ---
+        # Primary Ticker Delta
         curr_price = data['Close'].iloc[-1]
         prev_close = data['Close'].iloc[-2]
         price_delta = curr_price - prev_close
@@ -52,7 +51,7 @@ try:
             delta=f"${price_delta:+.2f} ({pct_delta:+.2f}%)"
         )
 
-        # --- Comparison Metric Calculation ---
+        # Comparison Ticker Delta
         comp_price = comp_data['Close'].iloc[-1]
         comp_prev = comp_data['Close'].iloc[-2]
         comp_delta = comp_price - comp_prev
@@ -64,23 +63,25 @@ try:
             delta=f"${comp_delta:+.2f} ({comp_pct:+.2f}%)"
         )
 
-        # 📈 THE MOUNTAIN VIEW
+        # 📈 THE 6-MONTH MOUNTAIN VIEW
         st.divider()
+        st.subheader(f"The 6-Month Institutional Horizon: {ticker}")
         st.area_chart(data['Close'], use_container_width=True)
 
         # 🔍 THE SYNC MATRIX (The Bridge)
-        st.subheader("The 'Inner Circle' Bridge")
-        # Pull 1y for long-term normalization
-        full_hist = yf.download([ticker, comp_ticker], period="1y")['Close']
-        norm_hist = full_hist / full_hist.iloc[0]
-        st.line_chart(norm_hist, use_container_width=True)
+        st.subheader("The 'Inner Circle' Bridge (Relative Performance)")
+        # Normalizing to 100 for true comparison
+        norm_data = data['Close'] / data['Close'].iloc[0] * 100
+        norm_comp = comp_data['Close'] / comp_data['Close'].iloc[0] * 100
+        combined = pd.DataFrame({ticker: norm_data, comp_ticker: norm_comp})
+        st.line_chart(combined, use_container_width=True)
 
-        # 🛡️ SOVEREIGN INTEL (April 24, 2026 DATA)
+        # 🛡️ SOVEREIGN INTEL (April 24, 2026)
         st.divider()
         if ticker == 'PBR':
-            st.info("📊 EX-DIVIDEND: Today (Apr 24). Total Adjustment: $0.248. Capital extraction in progress.")
+            st.info("📊 EX-DIVIDEND: Today (Apr 24). Price adjusted for $0.248 extraction.")
         elif ticker == 'SDGR':
-            st.warning("🕵️ GATES WATCH: Earnings May 5. Consensus target $21.38 (~87% upside).")
+            st.warning("🕵️ GATES WATCH: Earnings May 5. Notice the 6-month support forming.")
 
 except Exception as e:
     st.error(f"SYSTEM FAULT: {e}")
