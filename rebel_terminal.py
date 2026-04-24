@@ -4,8 +4,8 @@ import pandas as pd
 
 # 🛡️ SOVEREIGN CONFIGURATION
 st.set_page_config(page_title="Strategic US Terminal", layout="wide", initial_sidebar_state="collapsed")
-# FIXED: Changed unsafe_allow_height to unsafe_allow_html
-st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.5 | April 24, 2026 | Whale Recon Active</p>", unsafe_allow_html=True)
+# FIXED: Changed 'unsafe_allow_height' to 'unsafe_allow_html'
+st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.6 | April 24, 2026 | Opening Bell Edition</p>", unsafe_allow_html=True)
 
 # 🛠️ THE ARCHITECT RECON (SIDEBAR)
 with st.sidebar:
@@ -15,8 +15,9 @@ with st.sidebar:
     
     st.divider()
     st.subheader("Whale Tracking (Live Flow)")
-    st.page_link("https://unusualwhales.com/live-feed", label="Unusual Options Flow", icon="🐋")
-    st.page_link("https://www.cheddarflow.com/", label="Dark Pool Prints", icon="🧀")
+    # UPDATED: Direct 2026 paths to bypass 404s
+    st.page_link("https://unusualwhales.com/live-options-flow", label="Live Options Flow", icon="🐋")
+    st.page_link("https://www.cheddarflow.com/app", label="Dark Pool Dashboard", icon="🧀")
     
     st.divider()
     st.subheader("Architect Ledger (SEC)")
@@ -52,20 +53,18 @@ try:
         norm_comp = comp_data['Close'] / comp_data['Close'].iloc[0]
         combined = pd.DataFrame({ticker: norm_data, comp_ticker: norm_comp})
         st.line_chart(combined, use_container_width=True)
-        st.caption(f"Correlation Check: Monitoring {ticker} vs {comp_ticker} for institutional mirrors.")
+        st.caption(f"Tracking {ticker} vs {comp_ticker} for institutional mirrors.")
 
-        # 🛡️ FAT WALLET ALERTS (Real-Time April 24, 2026)
+        # 🛡️ SOVEREIGN INTEL (Real-Time April 24, 2026)
         st.divider()
         st.subheader("Sovereign Intelligence Feed")
         
-        if ticker == 'PBR':
-            st.info("📊 EX-DIVIDEND ALERT: Today (Apr 24). Rate: $0.24818. Yield extraction in progress.")
-        
-        if ticker == 'WST':
-            st.error("🚀 BREAKOUT: Q1 Beat. Gates 'Infrastructure' play is live.")
-            
         if ticker == 'SDGR':
-            st.warning("🕵️ GATES WATCH: #1 Holder. Q1 Earnings scheduled for May 5. Watch for pre-earnings accumulation.")
+            st.warning("🕵️ GATES WATCH: #1 Holder (~22%). Earnings May 5. Watch the $11.50 support level.")
+        elif ticker == 'WST':
+            st.error("🚀 INFRASTRUCTURE BREAKOUT: Q1 EPS beat. Market-wide shift into delivery systems.")
+        elif ticker == 'PBR':
+            st.info("📊 SIGNAL: Ex-Dividend Day. Expect price adjustment for the $0.248 payout.")
 
         # 📋 RAW DATA TAPE
         with st.expander("View Raw Data Tape"):
@@ -73,5 +72,3 @@ try:
 
 except Exception as e:
     st.error(f"SYSTEM FAULT: {e}")
-
-st.caption("Warning: Use 'Whale Tracking' links for Dark Pool confirmation.")
