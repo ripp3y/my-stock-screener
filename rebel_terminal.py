@@ -14,7 +14,7 @@ with st.sidebar:
     
     st.divider()
     st.subheader("Whale Tracking (2026 Verified)")
-    # FIXED: Direct paths to bypass 404s seen in screenshots
+    # FIXED: Direct paths to bypass 404s
     st.page_link("https://unusualwhales.com/live-options-flow", label="Live Options Flow", icon="🐋")
     st.page_link("https://www.cheddarflow.com/features/dark-pool-data", label="Dark Pool Ledger", icon="🧀")
     
@@ -60,9 +60,9 @@ try:
         if ticker == 'PBR':
             st.info("📊 EX-DIVIDEND ALERT: Today (Apr 24). Rate: $0.24818 special div. Record date today.")
         elif ticker == 'SDGR':
-            st.warning("🕵️ GATES WATCH: #1 Holder (~22%). Support zone: $11.67–$11.75. Resistance: $12.36.")
-        elif ticker == 'MSFT':
-            st.success("🏛️ ARCHITECT MOVE: Insider John Stanton bought 5k shares at $397.35; consensus target $575.")
+            st.warning("🕵️ GATES WATCH: #1 Holder (~22%). Earnings confirmed for May 5 after close.")
+        elif ticker == 'WST':
+            st.error("🚀 BREAKOUT: Q1 EPS beat confirmed. Guidance raised.")
 
         # 📋 RAW DATA TAPE
         with st.expander("View Raw Data Tape"):
