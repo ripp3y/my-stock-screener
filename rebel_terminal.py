@@ -1,45 +1,56 @@
 import streamlit as st
 import pandas as pd
 import requests
-import io
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="STEALTH STAND v11.10")
+st.set_page_config(page_title="PRO TERMINAL v11.12", layout="wide")
+# Your Master Key is now live
+API_KEY = "3HIAJ4MY3OPVFXCF" 
 
-# --- [2. THE TUNED FUNCTION] ---
-def get_data_stealth(ticker):
+# --- [2. THE PRO ENGINE] ---
+def get_pro_data(ticker):
+    """Bypasses Yahoo entirely. Uses AlphaVantage CSV stream."""
     try:
-        # We use a different URL format that is often less guarded
-        url = f"https://query1.finance.yahoo.com/v7/finance/download/{ticker}?interval=1d&events=history"
-        
-        # We upgraded the digital 'ID' to look like a standard Chrome browser
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-        }
-        
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            df = pd.read_csv(io.StringIO(response.text))
+        # Using the 'GLOBAL_QUOTE' function for a fast, single-price check
+        url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={API_KEY}&datatype=csv'
+        df = pd.read_csv(url)
+        if not df.empty:
             return df
-        else:
-            # This will tell us EXACTLY why it's failing (403, 404, etc.)
-            st.error(f"Access Denied for {ticker}. Error Code: {response.status_code}")
-            return None
+        return None
     except Exception as e:
-        st.error(f"Mechanical Failure: {e}")
+        st.error(f"Fuel Line Clog: {e}")
         return None
 
-# --- [3. INTERFACE] ---
-st.title("📟 STEALTH STAND v11.10")
-st.write("Engine is clear. Testing the fuel line (Yahoo Connection)...")
+# --- [3. HEADER] ---
+st.title("📟 PRO TERMINAL v11.12")
+st.caption("Engine: AlphaVantage Direct | Status: Master Key Active | Hub: Galax")
 
-if st.button("RE-FIRE ENGINE"):
-    with st.spinner("Injecting Stealth Headers..."):
-        for symbol in ["NVTS", "BTC-USD"]:
-            data = get_data_stealth(symbol)
-            if data is not None:
-                st.success(f"Connection Established: {symbol}")
-                st.metric(f"{symbol} Price", f"${data['Close'].iloc[-1]:.2f}")
-                st.line_chart(data['Close'].tail(20))
+# --- [4. THE TEST FIRE] ---
+st.write("Checking the new fuel source...")
+
+if st.button("CRANK THE BIG BLOCK"):
+    with st.spinner("Pumping Data from Pro Server..."):
+        # We test with NVTS first
+        data = get_pro_data("NVTS")
+        
+        if data is not None and 'price' in data.columns:
+            st.success("✅ CONNECTION ESTABLISHED")
+            
+            # AlphaVantage Quote returns specific column names
+            price = data['price'].iloc[0]
+            change = data['change_percent'].iloc[0]
+            volume = data['volume'].iloc[0]
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("NVTS Price", f"${float(price):.2f}")
+            c2.metric("Day Change", f"{change}")
+            c3.metric("Volume", f"{int(volume):,}")
+            
+            st.balloons() # Just to celebrate the firewall break!
+        else:
+            st.error("Engine sputtered. The API Key is correct, but the server might be throttled. Wait 60 seconds and try again.")
+
+# --- [5. LOGS] ---
+st.divider()
+st.info("Note: The Free Pro-Key allows 5 'cranks' per minute. Don't spam the button!")
+
