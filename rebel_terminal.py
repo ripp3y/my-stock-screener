@@ -4,7 +4,8 @@ import pandas as pd
 
 # 🛡️ SOVEREIGN CONFIGURATION
 st.set_page_config(page_title="Strategic US Terminal", layout="wide", initial_sidebar_state="collapsed")
-st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.5 | April 24, 2026 | Whale Recon Active</p>", unsafe_allow_height=True)
+# FIXED: Changed unsafe_allow_height to unsafe_allow_html
+st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.5 | April 24, 2026 | Whale Recon Active</p>", unsafe_allow_html=True)
 
 # 🛠️ THE ARCHITECT RECON (SIDEBAR)
 with st.sidebar:
@@ -61,7 +62,7 @@ try:
             st.info("📊 EX-DIVIDEND ALERT: Today (Apr 24). Rate: $0.24818. Yield extraction in progress.")
         
         if ticker == 'WST':
-            st.error("🚀 BREAKOUT: Q1 Beat ($2.13 EPS vs $1.69). Guidance raised. Gates 'Infrastructure' play is live.")
+            st.error("🚀 BREAKOUT: Q1 Beat. Gates 'Infrastructure' play is live.")
             
         if ticker == 'SDGR':
             st.warning("🕵️ GATES WATCH: #1 Holder. Q1 Earnings scheduled for May 5. Watch for pre-earnings accumulation.")
@@ -73,4 +74,4 @@ try:
 except Exception as e:
     st.error(f"SYSTEM FAULT: {e}")
 
-st.caption("Warning: This terminal is designed to filter institutional propaganda. Use the 'Whale Tracking' links for Dark Pool confirmation.")
+st.caption("Warning: Use 'Whale Tracking' links for Dark Pool confirmation.")
