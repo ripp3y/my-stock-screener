@@ -1,65 +1,55 @@
+
 import streamlit as st
 import pandas as pd
-import time
-from datetime import datetime
+import requests
+import io
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="HARDWIRE v11.8", layout="wide")
+st.set_page_config(page_title="TEST STAND v11.9")
 
-# --- [2. THE NO-LIBRARY ENGINE] ---
-@st.cache_data(ttl=600)
-def get_data_hardwired(ticker):
-    """Bypasses yfinance entirely. Reads raw CSV data from Yahoo's backend."""
+# --- [2. THE BARE FUNCTION] ---
+def get_data_manual(ticker):
+    """
+    Direct CSV pull. 
+    NO yfinance, NO scipy, NO specialized libraries.
+    """
     try:
-        # Create a Unix timestamp for today
-        now = int(time.time())
-        start = now - (30 * 24 * 60 * 60) # 30 days ago
+        # A simple, static URL to test connection
+        url = f"https://query1.finance.yahoo.com/v7/finance/download/{ticker}?interval=1d&events=history&includeAdjustedClose=true"
         
-        # This is a direct URL 'hardwire' to Yahoo's CSV server
-        url = f"https://query1.finance.yahoo.com/v7/finance/download/{ticker}?period1={start}&period2={now}&interval=1d&events=history&includeAdjustedClose=true"
+        # We use 'requests' which is a standard web tool
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers)
         
-        # Browser simulation header
-        df = pd.read_csv(url, storage_options={'User-Agent': 'Mozilla/5.0'})
-        return df
-    except:
+        if response.status_code == 200:
+            # Turn the raw text into a table
+            df = pd.read_csv(io.StringIO(response.text))
+            return df
+        else:
+            st.error(f"Server rejected request for {ticker} (Code: {response.status_code})")
+            return None
+    except Exception as e:
+        st.error(f"Mechanical Failure: {e}")
         return None
 
-# --- [3. HEADER] ---
-st.title("📟 HARDWIRE TERMINAL v11.8")
-st.caption("Engine: Direct CSV Injection | Status: Library-Free | Hub: Galax")
+# --- [3. INTERFACE] ---
+st.title("📟 TEST STAND v11.9")
+st.write("Stripped to the core. Checking spark...")
 
-# --- [4. MONITOR] ---
-col1, col2 = st.columns(2)
+if st.button("FIRE ENGINE"):
+    with st.spinner("Cranking..."):
+        # Test with the big two
+        for symbol in ["NVTS", "BTC-USD"]:
+            st.subheader(f"Results: {symbol}")
+            data = get_data_manual(symbol)
+            
+            if data is not None:
+                st.success(f"Connection Established for {symbol}")
+                curr_price = data['Close'].iloc[-1]
+                st.metric("Price", f"${curr_price:.2f}")
+                st.line_chart(data['Close'].tail(30))
+            else:
+                st.warning(f"No data for {symbol}")
 
-with col1:
-    st.subheader("NVTS")
-    nvts = get_data_hardwired("NVTS")
-    if nvts is not None:
-        price = nvts['Close'].iloc[-1]
-        st.metric("Current", f"${price:.2f}")
-        st.line_chart(nvts.set_index('Date')['Close'])
-
-with col2:
-    st.subheader("BTC")
-    btc = get_data_hardwired("BTC-USD")
-    if btc is not None:
-        price_btc = btc['Close'].iloc[-1]
-        st.metric("Current", f"${price_btc:,.2f}")
-        st.line_chart(btc.set_index('Date')['Close'])
-
-# --- [5. RECON LIST] ---
 st.divider()
-portfolio = ["FIX", "SNDK", "MRVL", "STX", "MTZ", "CIEN"]
-recon_list = []
-
-for t in portfolio:
-    data = get_data_hardwired(t)
-    if data is not None:
-        recon_list.append({
-            "Ticker": t, 
-            "Price": f"${data['Close'].iloc[-1]:.2f}",
-            "Date": data['Date'].iloc[-1]
-        })
-
-if recon_list:
-    st.table(pd.DataFrame(recon_list))
+st.caption("Zero Dependencies | Logic Only | Hub: Galax")
