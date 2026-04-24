@@ -58,7 +58,7 @@ try:
         st.subheader("Sovereign Intelligence Feed")
         
         if ticker == 'PBR':
-            st.info("📊 EX-DIVIDEND ALERT: Today (Apr 24). Rate: $0.24818 special div. Record date today.")
+            st.info("📊 EX-DIVIDEND ALERT: Today (Apr 24). Rate: $0.124094 x 2 ($0.248). Record date today.")
         elif ticker == 'SDGR':
             st.warning("🕵️ GATES WATCH: #1 Holder (~22%). Earnings confirmed for May 5 after close.")
         elif ticker == 'WST':
