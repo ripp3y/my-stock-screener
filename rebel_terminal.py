@@ -1,56 +1,39 @@
 import streamlit as st
 import pandas as pd
-import requests
+import requests  # <--- This was the missing bolt!
 
 # --- [1. CONFIG] ---
-st.set_page_config(page_title="PRO TERMINAL v11.12", layout="wide")
-# Your Master Key is now live
+st.set_page_config(page_title="PRO v11.13")
 API_KEY = "3HIAJ4MY3OPVFXCF" 
 
-# --- [2. THE PRO ENGINE] ---
+# --- [2. THE ENGINE] ---
 def get_pro_data(ticker):
-    """Bypasses Yahoo entirely. Uses AlphaVantage CSV stream."""
     try:
-        # Using the 'GLOBAL_QUOTE' function for a fast, single-price check
+        # Direct URL to the AlphaVantage Pro Server
         url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={ticker}&apikey={API_KEY}&datatype=csv'
-        df = pd.read_csv(url)
-        if not df.empty:
-            return df
-        return None
+        response = requests.get(url)
+        # Convert the response text into a table
+        from io import StringIO
+        return pd.read_csv(StringIO(response.text))
     except Exception as e:
-        st.error(f"Fuel Line Clog: {e}")
+        st.error(f"Engine Sputter: {e}")
         return None
 
-# --- [3. HEADER] ---
-st.title("📟 PRO TERMINAL v11.12")
-st.caption("Engine: AlphaVantage Direct | Status: Master Key Active | Hub: Galax")
+# --- [3. INTERFACE] ---
+st.title("📟 PRO v11.13")
+st.caption("AlphaVantage Active | Galax Hub")
 
-# --- [4. THE TEST FIRE] ---
-st.write("Checking the new fuel source...")
-
-if st.button("CRANK THE BIG BLOCK"):
-    with st.spinner("Pumping Data from Pro Server..."):
-        # We test with NVTS first
+if st.button("CRANK ENGINE"):
+    with st.spinner("Firing..."):
         data = get_pro_data("NVTS")
         
-        if data is not None and 'price' in data.columns:
-            st.success("✅ CONNECTION ESTABLISHED")
+        if data is not None and not data.empty and 'price' in data.columns:
+            st.success("✅ SPARK!")
             
-            # AlphaVantage Quote returns specific column names
             price = data['price'].iloc[0]
             change = data['change_percent'].iloc[0]
-            volume = data['volume'].iloc[0]
             
-            c1, c2, c3 = st.columns(3)
-            c1.metric("NVTS Price", f"${float(price):.2f}")
-            c2.metric("Day Change", f"{change}")
-            c3.metric("Volume", f"{int(volume):,}")
-            
-            st.balloons() # Just to celebrate the firewall break!
+            st.metric("NVTS", f"${float(price):.2f}", f"{change}")
+            st.balloons()
         else:
-            st.error("Engine sputtered. The API Key is correct, but the server might be throttled. Wait 60 seconds and try again.")
-
-# --- [5. LOGS] ---
-st.divider()
-st.info("Note: The Free Pro-Key allows 5 'cranks' per minute. Don't spam the button!")
-
+            st.error("No data returned. Wait 60 seconds (API limit) and try again.")
