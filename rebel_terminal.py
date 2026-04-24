@@ -4,7 +4,7 @@ import pandas as pd
 
 # 🛡️ SOVEREIGN CONFIGURATION
 st.set_page_config(page_title="Strategic US Terminal", layout="wide", initial_sidebar_state="collapsed")
-st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.8 | April 24, 2026 | Live KPI Layer Active</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.9 | April 24, 2026 | Headline Tape Active</p>", unsafe_allow_html=True)
 
 # 🛠️ THE ARCHITECT RECON (SIDEBAR)
 with st.sidebar:
@@ -26,50 +26,61 @@ with st.sidebar:
 st.title(f"Strategic Terminal: {ticker}")
 
 try:
-    # Fetching Data
+    # Fetching Data (5d window to ensure we have previous close for delta)
     data = yf.download(ticker, period="5d", interval="1d")
     comp_data = yf.download(comp_ticker, period="5d", interval="1d")
     
     if not data.empty:
+        # Standardize Columns
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
         if isinstance(comp_data.columns, pd.MultiIndex):
             comp_data.columns = comp_data.columns.get_level_values(0)
 
-        # 📊 LIVE KPI LAYER (Price & Percent Change)
+        # 📊 HEADLINE TAPE (Price & % Change)
         col1, col2 = st.columns(2)
         
-        # Primary Ticker Calc
-        last_price = data['Close'].iloc[-1]
+        # --- Primary Metric Calculation ---
+        curr_price = data['Close'].iloc[-1]
         prev_close = data['Close'].iloc[-2]
-        change = last_price - prev_close
-        pct_change = (change / prev_close) * 100
+        price_delta = curr_price - prev_close
+        pct_delta = (price_delta / prev_close) * 100
         
-        col1.metric(f"{ticker} Price", f"${last_price:,.2f}", f"{pct_change:+.2f}%")
+        col1.metric(
+            label=f"{ticker} Current", 
+            value=f"${curr_price:,.2f}", 
+            delta=f"${price_delta:+.2f} ({pct_delta:+.2f}%)"
+        )
 
-        # Comp Ticker Calc
-        comp_last = comp_data['Close'].iloc[-1]
+        # --- Comparison Metric Calculation ---
+        comp_price = comp_data['Close'].iloc[-1]
         comp_prev = comp_data['Close'].iloc[-2]
-        comp_pct = ((comp_last - comp_prev) / comp_prev) * 100
+        comp_delta = comp_price - comp_prev
+        comp_pct = (comp_delta / comp_prev) * 100
         
-        col2.metric(f"{comp_ticker} Price", f"${comp_last:,.2f}", f"{comp_pct:+.2f}%")
+        col2.metric(
+            label=f"{comp_ticker} Current", 
+            value=f"${comp_price:,.2f}", 
+            delta=f"${comp_delta:+.2f} ({comp_pct:+.2f}%)"
+        )
 
         # 📈 THE MOUNTAIN VIEW
         st.divider()
         st.area_chart(data['Close'], use_container_width=True)
 
-        # 🔍 THE SYNC MATRIX
+        # 🔍 THE SYNC MATRIX (The Bridge)
         st.subheader("The 'Inner Circle' Bridge")
-        full_data = yf.download([ticker, comp_ticker], period="1y")['Close']
-        norm_data = full_data / full_data.iloc[0]
-        st.line_chart(norm_data, use_container_width=True)
+        # Pull 1y for long-term normalization
+        full_hist = yf.download([ticker, comp_ticker], period="1y")['Close']
+        norm_hist = full_hist / full_hist.iloc[0]
+        st.line_chart(norm_hist, use_container_width=True)
 
         # 🛡️ SOVEREIGN INTEL (April 24, 2026 DATA)
         st.divider()
         if ticker == 'PBR':
-            st.info("📊 EX-DIVIDEND: Today (Apr 24). Price adjusted for $0.248 extraction.")
+            st.info("📊 EX-DIVIDEND: Today (Apr 24). Total Adjustment: $0.248. Capital extraction in progress.")
         elif ticker == 'SDGR':
-            st.warning("🕵️ GATES WATCH: Earnings May 5. Watch for accumulation at current levels.")
+            st.warning("🕵️ GATES WATCH: Earnings May 5. Consensus target $21.38 (~87% upside).")
 
 except Exception as e:
     st.error(f"SYSTEM FAULT: {e}")
