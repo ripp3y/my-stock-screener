@@ -4,7 +4,7 @@ import pandas as pd
 
 # 🛡️ SOVEREIGN CONFIGURATION
 st.set_page_config(page_title="Strategic US Terminal", layout="wide", initial_sidebar_state="collapsed")
-st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.7 | April 24, 2026 | Whales Online</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:10px; color: #555;'>Sovereignty Station v2.8 | April 24, 2026 | Live KPI Layer Active</p>", unsafe_allow_html=True)
 
 # 🛠️ THE ARCHITECT RECON (SIDEBAR)
 with st.sidebar:
@@ -14,7 +14,6 @@ with st.sidebar:
     
     st.divider()
     st.subheader("Whale Tracking (2026 Verified)")
-    # FIXED: Direct paths to bypass 404s
     st.page_link("https://unusualwhales.com/live-options-flow", label="Live Options Flow", icon="🐋")
     st.page_link("https://www.cheddarflow.com/features/dark-pool-data", label="Dark Pool Ledger", icon="🧀")
     
@@ -22,17 +21,14 @@ with st.sidebar:
     st.subheader("Architect Ledger (SEC)")
     st.page_link("https://www.sec.gov/edgar/browse/?CIK=1364742", label="BlackRock Filings", icon="🔍")
     st.page_link("https://www.sec.gov/edgar/browse/?CIK=102909", label="Vanguard Filings", icon="🔍")
-    
-    if st.button("Refresh Sync Algos"):
-        st.success("Synchronized with 2026 data feeds.")
 
 # 🏔️ THE MAIN TERMINAL ENGINE
 st.title(f"Strategic Terminal: {ticker}")
 
 try:
     # Fetching Data
-    data = yf.download(ticker, period="1y", interval="1d")
-    comp_data = yf.download(comp_ticker, period="1y", interval="1d")
+    data = yf.download(ticker, period="5d", interval="1d")
+    comp_data = yf.download(comp_ticker, period="5d", interval="1d")
     
     if not data.empty:
         if isinstance(data.columns, pd.MultiIndex):
@@ -40,33 +36,40 @@ try:
         if isinstance(comp_data.columns, pd.MultiIndex):
             comp_data.columns = comp_data.columns.get_level_values(0)
 
-        # 📊 THE MOUNTAIN VIEW
-        st.subheader(f"Institutional Tape: {ticker}")
+        # 📊 LIVE KPI LAYER (Price & Percent Change)
+        col1, col2 = st.columns(2)
+        
+        # Primary Ticker Calc
+        last_price = data['Close'].iloc[-1]
+        prev_close = data['Close'].iloc[-2]
+        change = last_price - prev_close
+        pct_change = (change / prev_close) * 100
+        
+        col1.metric(f"{ticker} Price", f"${last_price:,.2f}", f"{pct_change:+.2f}%")
+
+        # Comp Ticker Calc
+        comp_last = comp_data['Close'].iloc[-1]
+        comp_prev = comp_data['Close'].iloc[-2]
+        comp_pct = ((comp_last - comp_prev) / comp_prev) * 100
+        
+        col2.metric(f"{comp_ticker} Price", f"${comp_last:,.2f}", f"{comp_pct:+.2f}%")
+
+        # 📈 THE MOUNTAIN VIEW
+        st.divider()
         st.area_chart(data['Close'], use_container_width=True)
 
-        # 🔍 THE SYNC MATRIX (The Bridge)
-        st.divider()
+        # 🔍 THE SYNC MATRIX
         st.subheader("The 'Inner Circle' Bridge")
-        norm_data = data['Close'] / data['Close'].iloc[0]
-        norm_comp = comp_data['Close'] / comp_data['Close'].iloc[0]
-        combined = pd.DataFrame({ticker: norm_data, comp_ticker: norm_comp})
-        st.line_chart(combined, use_container_width=True)
-        st.caption(f"Sync: Tracking {ticker} vs {comp_ticker} institutional mirrors.")
+        full_data = yf.download([ticker, comp_ticker], period="1y")['Close']
+        norm_data = full_data / full_data.iloc[0]
+        st.line_chart(norm_data, use_container_width=True)
 
         # 🛡️ SOVEREIGN INTEL (April 24, 2026 DATA)
         st.divider()
-        st.subheader("Sovereign Intelligence Feed")
-        
         if ticker == 'PBR':
-            st.info("📊 EX-DIVIDEND ALERT: Today (Apr 24). Rate: $0.124094 x 2 ($0.248). Record date today.")
+            st.info("📊 EX-DIVIDEND: Today (Apr 24). Price adjusted for $0.248 extraction.")
         elif ticker == 'SDGR':
-            st.warning("🕵️ GATES WATCH: #1 Holder (~22%). Earnings confirmed for May 5 after close.")
-        elif ticker == 'WST':
-            st.error("🚀 BREAKOUT: Q1 EPS beat confirmed. Guidance raised.")
-
-        # 📋 RAW DATA TAPE
-        with st.expander("View Raw Data Tape"):
-            st.dataframe(data.tail(10), use_container_width=True)
+            st.warning("🕵️ GATES WATCH: Earnings May 5. Watch for accumulation at current levels.")
 
 except Exception as e:
     st.error(f"SYSTEM FAULT: {e}")
